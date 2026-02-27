@@ -15,6 +15,30 @@ import { SearchBarExtension } from './searchBar';
 
 const lowlight = createLowlight(common);
 
+const CustomCodeBlock = CodeBlockLowlight.configure({ lowlight }).extend({
+  addStorage() {
+    return {
+      ...this.parent?.(),
+      markdown: {
+        serialize(state: any, node: any) {
+          state.write("```" + (node.attrs.language || "") + "\n");
+          state.text(node.textContent, false);
+          // ensureNewLine() is a no-op when output already ends with \n,
+          // which absorbs trailing empty lines in code blocks.
+          // Add an explicit \n when content has a trailing newline so it
+          // survives the fenced code round-trip.
+          if (node.textContent.endsWith("\n")) {
+            state.out += "\n";
+          }
+          state.ensureNewLine();
+          state.write("```");
+          state.closeBlock(node);
+        },
+      },
+    };
+  },
+});
+
 export function createEditor(element: HTMLElement): Editor {
   return new Editor({
     element,
@@ -40,7 +64,7 @@ export function createEditor(element: HTMLElement): Editor {
       TableHeader,
       TaskList,
       TaskItem.configure({ nested: true }),
-      CodeBlockLowlight.configure({ lowlight }),
+      CustomCodeBlock,
       LinkDialogExtension,
       SearchBarExtension,
     ],

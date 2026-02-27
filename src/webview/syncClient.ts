@@ -13,6 +13,7 @@ export class SyncClient {
   private isExternalUpdate: boolean = false;
   private currentVersion: number = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingExternalUpdate: ExtensionToWebviewMessage | null = null;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private debounceDelayInMs: number = 300;
   private onFirstInit: (() => void) | undefined;
@@ -45,23 +46,17 @@ export class SyncClient {
         }
         break;
 
-      case 'externalUpdate':
+      case 'externalUpdate': {
         if (msg.version <= this.currentVersion) return;
 
-        this.isExternalUpdate = true;
+        if (this.debounceTimer !== null) {
+          this.pendingExternalUpdate = msg;
+          break;
+        }
 
-        const { from, to } = this.editor.state.selection;
-
-        this.editor.commands.setContent(msg.markdown);
-
-        this.editor.commands.setTextSelection({
-          from: Math.min(from, this.editor.state.doc.content.size - 1),
-          to: Math.min(to, this.editor.state.doc.content.size - 1),
-        });
-
-        this.currentVersion = msg.version;
-        this.isExternalUpdate = false;
+        this.applyExternalUpdate(msg);
         break;
+      }
     }
   }
 
@@ -80,14 +75,45 @@ export class SyncClient {
       clearTimeout(this.debounceTimer);
     }
     this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
       this.sendEdit();
     }, this.debounceDelayInMs);
+  }
+
+  private applyExternalUpdate(msg: ExtensionToWebviewMessage): void {
+    if (msg.type !== 'externalUpdate') return;
+
+    const currentMarkdown = this.editor.storage.markdown.getMarkdown();
+    if (msg.markdown.trimEnd() === currentMarkdown.trimEnd()) {
+      this.currentVersion = msg.version;
+      return;
+    }
+
+    this.isExternalUpdate = true;
+
+    const { from, to } = this.editor.state.selection;
+
+    this.editor.commands.setContent(msg.markdown);
+
+    this.editor.commands.setTextSelection({
+      from: Math.min(from, this.editor.state.doc.content.size - 1),
+      to: Math.min(to, this.editor.state.doc.content.size - 1),
+    });
+
+    this.currentVersion = msg.version;
+    this.isExternalUpdate = false;
   }
 
   private sendEdit(): void {
     const markdown = this.editor.storage.markdown.getMarkdown();
     this.currentVersion++;
     this.vscode.postMessage({ type: 'edit', markdown, version: this.currentVersion });
+
+    if (this.pendingExternalUpdate) {
+      const pending = this.pendingExternalUpdate;
+      this.pendingExternalUpdate = null;
+      this.applyExternalUpdate(pending);
+    }
   }
 
   private setupKeyboardShortcuts(): void {

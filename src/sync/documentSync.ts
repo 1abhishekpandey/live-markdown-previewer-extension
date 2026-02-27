@@ -49,8 +49,9 @@ export class DocumentSyncManager {
     }
 
     const content = document.getText();
-    if (this.lastAppliedContent !== null && content === this.lastAppliedContent) {
-      this.lastAppliedContent = null;
+    if (this.lastAppliedContent !== null &&
+        content.trimEnd() === this.lastAppliedContent.trimEnd()) {
+      // keep lastAppliedContent for subsequent echoes
       return;
     }
 
