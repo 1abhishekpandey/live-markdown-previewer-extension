@@ -19,7 +19,7 @@ html, body {
 /* Editor container */
 #editor {
   margin: 0;
-  padding: 40px 48px;
+  padding: 16px 48px;
   min-height: 100vh;
 }
 
@@ -31,6 +31,10 @@ html, body {
 
 .ProseMirror > * + * {
   margin-top: 0.75em;
+}
+
+.ProseMirror > *:first-child {
+  margin-top: 0;
 }
 
 /* Headings */
