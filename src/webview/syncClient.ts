@@ -14,12 +14,13 @@ export class SyncClient {
   private currentVersion: number = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private debounceDelayInMs: number = 300;
+  private onFirstInit: (() => void) | undefined;
 
-  private static readonly DEBOUNCE_MS = 300;
-
-  constructor(editor: Editor, vscode: VsCodeApi) {
+  constructor(editor: Editor, vscode: VsCodeApi, onFirstInit?: () => void) {
     this.editor = editor;
     this.vscode = vscode;
+    this.onFirstInit = onFirstInit;
   }
 
   init(): void {
@@ -37,6 +38,11 @@ export class SyncClient {
     switch (msg.type) {
       case 'init':
         this.editor.commands.setContent(msg.markdown);
+        this.setAdaptiveDebounce(msg.markdown.length);
+        if (this.onFirstInit) {
+          this.onFirstInit();
+          this.onFirstInit = undefined;
+        }
         break;
 
       case 'externalUpdate':
@@ -59,13 +65,23 @@ export class SyncClient {
     }
   }
 
+  private setAdaptiveDebounce(charCount: number): void {
+    if (charCount > 100_000) {
+      this.debounceDelayInMs = 800;
+    } else if (charCount > 30_000) {
+      this.debounceDelayInMs = 500;
+    } else {
+      this.debounceDelayInMs = 300;
+    }
+  }
+
   private debouncedSendEdit(): void {
     if (this.debounceTimer !== null) {
       clearTimeout(this.debounceTimer);
     }
     this.debounceTimer = setTimeout(() => {
       this.sendEdit();
-    }, SyncClient.DEBOUNCE_MS);
+    }, this.debounceDelayInMs);
   }
 
   private sendEdit(): void {
@@ -76,6 +92,8 @@ export class SyncClient {
 
   private setupKeyboardShortcuts(): void {
     this.keydownHandler = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.id === 'search-input') return;
+
       const modKey = e.metaKey || e.ctrlKey;
       if (!modKey) return;
 

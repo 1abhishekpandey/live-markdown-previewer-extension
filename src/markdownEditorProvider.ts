@@ -40,7 +40,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
 
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
-      syncManager.handleWebviewMessage(msg);
+      syncManager.handleWebviewMessage(msg).catch((err) => {
+        console.error('[md-editor] Error handling webview message:', err);
+      });
     });
 
     // Wire up document change handling
@@ -89,6 +91,7 @@ function getWebviewContent(
   <title>Markdown Editor</title>
 </head>
 <body>
+  <div id="loading-overlay"><div class="loading-spinner"></div></div>
   <div id="editor"></div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>

@@ -11,6 +11,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
 import { LinkDialogExtension } from './linkDialog';
+import { SearchBarExtension } from './searchBar';
 
 const lowlight = createLowlight(common);
 
@@ -41,6 +42,7 @@ export function createEditor(element: HTMLElement): Editor {
       TaskItem.configure({ nested: true }),
       CodeBlockLowlight.configure({ lowlight }),
       LinkDialogExtension,
+      SearchBarExtension,
     ],
     editorProps: {
       attributes: {

@@ -17,7 +17,15 @@ if (!editorElement) {
 }
 
 const editor = createEditor(editorElement);
-const syncClient = new SyncClient(editor, vscode);
+const loadingOverlay = document.getElementById('loading-overlay');
+const safetyTimeout = setTimeout(() => {
+  loadingOverlay?.classList.add('hidden');
+}, 8000);
+
+const syncClient = new SyncClient(editor, vscode, () => {
+  clearTimeout(safetyTimeout);
+  loadingOverlay?.classList.add('hidden');
+});
 
 window.addEventListener('message', (event: MessageEvent<ExtensionToWebviewMessage>) => {
   syncClient.handleMessage(event.data);
