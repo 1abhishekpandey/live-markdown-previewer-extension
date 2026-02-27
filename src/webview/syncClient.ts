@@ -17,6 +17,7 @@ export class SyncClient {
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private debounceDelayInMs: number = 300;
   private onFirstInit: (() => void) | undefined;
+  private isReadOnly: boolean = false;
 
   constructor(editor: Editor, vscode: VsCodeApi, onFirstInit?: () => void) {
     this.editor = editor;
@@ -40,6 +41,11 @@ export class SyncClient {
       case 'init':
         this.editor.commands.setContent(msg.markdown);
         this.setAdaptiveDebounce(msg.markdown.length);
+        if (msg.isReadOnly) {
+          this.isReadOnly = true;
+          this.editor.setEditable(false);
+          this.insertReadOnlyBanner();
+        }
         if (this.onFirstInit) {
           this.onFirstInit();
           this.onFirstInit = undefined;
@@ -71,6 +77,7 @@ export class SyncClient {
   }
 
   private debouncedSendEdit(): void {
+    if (this.isReadOnly) return;
     if (this.debounceTimer !== null) {
       clearTimeout(this.debounceTimer);
     }
@@ -125,18 +132,27 @@ export class SyncClient {
 
       if (e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        this.vscode.postMessage({ type: 'undo' });
+        if (!this.isReadOnly) this.vscode.postMessage({ type: 'undo' });
       } else if (e.key === 'z' && e.shiftKey) {
         e.preventDefault();
-        this.vscode.postMessage({ type: 'redo' });
+        if (!this.isReadOnly) this.vscode.postMessage({ type: 'redo' });
       } else if (e.key === 's') {
         e.preventDefault();
-        const markdown = this.editor.storage.markdown.getMarkdown();
-        this.vscode.postMessage({ type: 'save', markdown });
+        if (!this.isReadOnly) {
+          const markdown = this.editor.storage.markdown.getMarkdown();
+          this.vscode.postMessage({ type: 'save', markdown });
+        }
       }
     };
 
     document.addEventListener('keydown', this.keydownHandler);
+  }
+
+  private insertReadOnlyBanner(): void {
+    const banner = document.createElement('div');
+    banner.id = 'read-only-banner';
+    banner.textContent = 'Read-only';
+    document.body.insertBefore(banner, document.body.firstChild);
   }
 
   dispose(): void {

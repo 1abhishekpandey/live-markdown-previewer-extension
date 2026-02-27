@@ -35,8 +35,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Set HTML content
     webview.html = getWebviewContent(webview, scriptUri, styleUri, nonce);
 
+    // Detect read-only documents (e.g. git base versions from Source Control)
+    const writableSchemes = new Set(['file', 'untitled']);
+    const isReadOnly = !writableSchemes.has(document.uri.scheme);
+
     // Create sync manager
-    const syncManager = new DocumentSyncManager(document, webview);
+    const syncManager = new DocumentSyncManager(document, webview, isReadOnly);
 
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
@@ -45,12 +49,14 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       });
     });
 
-    // Wire up document change handling
-    const changeDisposable = vscode.workspace.onDidChangeTextDocument((e) => {
-      if (e.document.uri.toString() === document.uri.toString()) {
-        syncManager.handleDocumentChange(e.document);
-      }
-    });
+    // Wire up document change handling (skip for read-only — git blobs don't change mid-session)
+    const changeDisposable = isReadOnly
+      ? undefined
+      : vscode.workspace.onDidChangeTextDocument((e) => {
+          if (e.document.uri.toString() === document.uri.toString()) {
+            syncManager.handleDocumentChange(e.document);
+          }
+        });
 
     // Re-sync when panel becomes visible again
     const viewStateDisposable = webviewPanel.onDidChangeViewState(() => {
@@ -67,7 +73,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Cleanup on dispose
     webviewPanel.onDidDispose(() => {
       messageDisposable.dispose();
-      changeDisposable.dispose();
+      changeDisposable?.dispose();
       viewStateDisposable.dispose();
     });
   }

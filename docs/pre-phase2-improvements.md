@@ -10,44 +10,25 @@ Mark `[x]` on the phase heading after all its items are complete.
 
 # - [ ] Phase A — Quick Wins
 
-## A1: Find & Replace
+## A2: Read-Only Mode ✅
 
-**Effort:** Low
+**Effort:** Low — **Completed**
 
-The search bar (`Cmd+F`) currently supports find-only. Replace is a natural expectation and the infrastructure already exists.
-
-### Scope
-- Add a replace input field below the find input (toggled via a chevron or `Cmd+Shift+H`)
-- "Replace" button — replaces the current highlighted match
-- "Replace All" button — replaces all matches in one operation
-- Replacement goes through the normal edit → sync pipeline (so undo/redo works)
-- Match counter updates after each replacement
-
-### Acceptance Criteria
-- [ ] `Cmd+H` or chevron toggle reveals the replace field
-- [ ] Replacing a single match advances to the next match
-- [ ] Replace All updates the counter and clears highlights
-- [ ] All replacements are undoable via `Cmd+Z`
-
----
-
-## A2: Read-Only Mode
-
-**Effort:** Low
-
-The spec lists a read-only state for files opened via Source Control (base/HEAD versions) or files without write permission. Currently the TipTap editor remains editable, but `WorkspaceEdit` silently fails — confusing for users.
+Detects read-only documents (e.g. git base versions from Source Control) using a URI scheme whitelist (`file` and `untitled` are writable; all other schemes default to read-only). Disables editing in TipTap, shows a centred "Read-only" banner, and skips the edit pipeline entirely.
 
 ### Scope
-- Detect read-only state: check `document.uri.scheme` (e.g., `git`, `vscode-scm`) or VS Code's file permission model
-- Call `editor.setEditable(false)` on TipTap when the document is read-only
-- Visual indicator: subtle banner or dimmed cursor to signal non-editable state
-- Skip sync listener setup for read-only documents (no edit pipeline needed)
+- [x] Detect read-only state via `document.uri.scheme` whitelist (`file`, `untitled` = writable)
+- [x] Call `editor.setEditable(false)` on TipTap when the document is read-only
+- [x] Visual indicator: fixed "Read-only" banner centred at top of viewport
+- [x] Skip `onDidChangeTextDocument` listener for read-only documents
+- [x] Guard edit/save/undo/redo handlers on both extension and webview sides
+- [x] Keyboard shortcuts (Cmd+Z, Cmd+Shift+Z, Cmd+S) still `preventDefault` but skip message posting
 
 ### Acceptance Criteria
-- [ ] Opening a file from Source Control "Changes" shows it as non-editable
-- [ ] Typing in a read-only view does nothing (no silent failures)
-- [ ] Visual cue distinguishes read-only from editable mode
-- [ ] Files opened normally remain fully editable
+- [x] Opening a file from Source Control "Changes" shows it as non-editable
+- [x] Typing in a read-only view does nothing (no silent failures)
+- [x] Visual cue distinguishes read-only from editable mode
+- [x] Files opened normally remain fully editable
 
 ---
 

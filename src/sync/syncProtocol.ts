@@ -3,6 +3,7 @@
 export interface InitMessage {
   type: 'init';
   markdown: string;
+  isReadOnly?: boolean;
 }
 
 export interface ExternalUpdateMessage {

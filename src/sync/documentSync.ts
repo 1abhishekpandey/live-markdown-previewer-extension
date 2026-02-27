@@ -7,33 +7,39 @@ export class DocumentSyncManager {
   private lastAppliedContent: string | null = null;
   private document: vscode.TextDocument;
   private webview: vscode.Webview;
+  private readonly isReadOnly: boolean;
 
-  constructor(document: vscode.TextDocument, webview: vscode.Webview) {
+  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false) {
     this.document = document;
     this.webview = webview;
+    this.isReadOnly = isReadOnly;
   }
 
   async handleWebviewMessage(msg: WebviewToExtensionMessage): Promise<void> {
     switch (msg.type) {
       case 'ready':
-        this.postMessage({ type: 'init', markdown: this.document.getText() });
+        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly });
         break;
 
       case 'edit':
+        if (this.isReadOnly) return;
         if (msg.version >= this.currentVersion) {
           await this.applyMarkdownEdit(msg.markdown);
         }
         break;
 
       case 'undo':
+        if (this.isReadOnly) return;
         vscode.commands.executeCommand('undo');
         break;
 
       case 'redo':
+        if (this.isReadOnly) return;
         vscode.commands.executeCommand('redo');
         break;
 
       case 'save':
+        if (this.isReadOnly) return;
         await this.applyMarkdownEdit(msg.markdown);
         await this.document.save();
         break;
