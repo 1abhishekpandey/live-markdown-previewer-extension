@@ -13,6 +13,27 @@
       "displayName": "Markdown Editor",
       "selector": [{ "filenamePattern": "*.md" }],
       "priority": "default"
+    }],
+    "commands": [{
+      "command": "mdEditor.toggleRawMarkdown",
+      "title": "Toggle Raw Markdown",
+      "icon": "$(code)",
+      "category": "Markdown Editor"
+    }],
+    "menus": {
+      "editor/title": [{
+        "command": "mdEditor.toggleRawMarkdown",
+        "when": "resourceExtname == '.md'",
+        "group": "navigation"
+      }]
+    },
+    "keybindings": [{
+      "command": "mdEditor.toggleRawMarkdown",
+      "key": "shift+cmd+m",
+      "mac": "shift+cmd+m",
+      "win": "ctrl+shift+m",
+      "linux": "ctrl+shift+m",
+      "when": "resourceExtname == '.md'"
     }]
   },
   "scripts": {

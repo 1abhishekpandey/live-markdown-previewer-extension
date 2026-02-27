@@ -32,25 +32,25 @@ Detects read-only documents (e.g. git base versions from Source Control) using a
 
 ---
 
-## A3: Raw Markdown Toggle
+## A3: Raw Markdown Toggle ✅
 
-**Effort:** Low
+**Effort:** Low — **Completed**
 
-Users sometimes need to see or edit the raw markdown source — to fix syntax issues, inspect frontmatter, or copy exact markup. Currently there is no way to switch between WYSIWYG and raw views.
+Users sometimes need to see or edit the raw markdown source — to fix syntax issues, inspect frontmatter, or copy exact markup. Toggles between the WYSIWYG TipTap view and VS Code's built-in default text editor (with full syntax highlighting, line numbers, search, minimap) using `workbench.action.toggleEditorType`. The switch happens in-place within the same tab.
 
 ### Scope
-- Toggle button in the editor title bar (e.g., `</>` icon) to switch between WYSIWYG and raw markdown view
-- Raw view: display the plain markdown text in a monospace, syntax-highlighted editor (read-write)
-- Edits in raw view sync back to the document (same sync pipeline as WYSIWYG)
-- Switching back to WYSIWYG re-parses the markdown into TipTap
-- Toggle state does not persist across tab reopens (defaults to WYSIWYG)
+- [x] Toggle button (`</>` icon) in the editor title bar to switch between WYSIWYG and VS Code's default text editor
+- [x] Raw view: VS Code's built-in text editor with syntax highlighting, line numbers, and all standard editor features
+- [x] Edits in raw view sync back to the document via VS Code's native text editor pipeline
+- [x] Switching back to WYSIWYG re-parses the markdown into TipTap
+- [x] Toggle state does not persist across tab reopens (defaults to WYSIWYG)
 
 ### Acceptance Criteria
-- [ ] Title bar shows a toggle button to switch views
-- [ ] Raw view displays the exact markdown source with monospace font
-- [ ] Edits in raw view are saved to disk like normal edits
-- [ ] Switching WYSIWYG → Raw → WYSIWYG preserves content without data loss
-- [ ] Keyboard shortcut (e.g., `Cmd+Shift+M`) toggles between views
+- [x] Title bar shows a toggle button to switch views
+- [x] Raw view displays the exact markdown source with syntax highlighting and line numbers
+- [x] Edits in raw view are saved to disk like normal edits
+- [x] Switching WYSIWYG → Raw → WYSIWYG preserves content without data loss
+- [x] Keyboard shortcut (`Cmd+Shift+M` / `Ctrl+Shift+M`) toggles between views
 
 ---
 

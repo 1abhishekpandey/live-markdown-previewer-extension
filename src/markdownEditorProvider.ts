@@ -14,7 +14,6 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     const webview = webviewPanel.webview;
-
     // Configure webview
     webview.options = {
       enableScripts: true,
@@ -77,6 +76,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       viewStateDisposable.dispose();
     });
   }
+
 }
 
 function getWebviewContent(

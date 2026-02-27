@@ -10,7 +10,12 @@ export function activate(context: vscode.ExtensionContext) {
 		{ webviewOptions: { retainContextWhenHidden: true } }
 	);
 
-	context.subscriptions.push(disposable);
+	const toggleCmd = vscode.commands.registerCommand(
+		'mdEditor.toggleRawMarkdown',
+		() => vscode.commands.executeCommand('workbench.action.toggleEditorType')
+	);
+
+	context.subscriptions.push(disposable, toggleCmd);
 }
 
 export function deactivate() {}
