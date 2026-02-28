@@ -17,6 +17,20 @@ import { CopyToolbarExtension } from './copyToolbar';
 
 const lowlight = createLowlight(common);
 
+const DANGEROUS_PROTOCOLS = /^\s*(javascript|data|vbscript):/i;
+
+function isAllowedLinkUri(
+  url: string,
+  ctx: { defaultValidate: (url: string) => boolean },
+): boolean {
+  if (!url) return false;
+  if (DANGEROUS_PROTOCOLS.test(url)) return false;
+  // Default validation rejects relative paths like "docs/setup.md"
+  // due to a regex bug where '/' falls in the ASCII range '.-:'.
+  // Allow any URL that isn't a dangerous protocol.
+  return true;
+}
+
 const CustomCodeBlock = CodeBlockLowlight.configure({ lowlight }).extend({
   addStorage() {
     return {
@@ -52,6 +66,7 @@ export function createEditor(element: HTMLElement): Editor {
       Link.configure({
         openOnClick: false,
         HTMLAttributes: { class: 'editor-link' },
+        isAllowedUri: isAllowedLinkUri,
       }),
       Markdown.configure({
         html: true,

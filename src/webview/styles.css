@@ -357,6 +357,18 @@ html, body {
   background: rgba(128, 128, 128, 0.04);
 }
 
+/* Links inside table cells */
+.ProseMirror td a,
+.ProseMirror td .editor-link,
+.ProseMirror th a,
+.ProseMirror th .editor-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+  text-decoration-color: rgba(55, 148, 255, 0.4);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* Images */
 .ProseMirror img {
   max-width: 100%;
