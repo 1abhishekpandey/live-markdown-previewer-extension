@@ -17,7 +17,7 @@ interface SearchState {
 
 const searchPluginKey = new PluginKey<SearchState>('searchBar');
 
-function findMatches(doc: PmNode, query: string): SearchMatch[] {
+export function findMatches(doc: PmNode, query: string): SearchMatch[] {
   if (!query) return [];
 
   const matches: SearchMatch[] = [];
@@ -200,7 +200,7 @@ function getSearchState(editor: Editor): SearchState | undefined {
   return searchPluginKey.getState(editor.view.state);
 }
 
-function updateCountLabel(countEl: HTMLSpanElement, state: SearchState | undefined): void {
+export function updateCountLabel(countEl: HTMLSpanElement, state: SearchState | undefined): void {
   if (!state || state.matches.length === 0) {
     countEl.textContent = state?.query ? 'No results' : '';
   } else {

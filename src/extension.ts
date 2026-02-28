@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { MarkdownEditorProvider } from './markdownEditorProvider';
 
-function stripMarkdownSyntax(line: string): string {
+export function stripMarkdownSyntax(line: string): string {
 	let text = line;
 	// Strip blockquotes first (can wrap any block type)
 	text = text.replace(/^[\s]*>[\s]?/g, '');
@@ -24,12 +24,12 @@ function stripMarkdownSyntax(line: string): string {
 		.replace(/_([^_]*)_/g, '$1')
 		.replace(/~~(.*?)~~/g, '$1')
 		.replace(/`([^`]*)`/g, '$1')
-		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
 		.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
 		.trim();
 }
 
-function findAnchorLine(
+export function findAnchorLine(
 	document: vscode.TextDocument,
 	anchorText: string,
 	roughFraction: number
