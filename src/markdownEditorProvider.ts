@@ -1,8 +1,17 @@
 import * as vscode from 'vscode';
 import { DocumentSyncManager } from './sync/documentSync';
 
+interface PanelAnchorState {
+  lastAnchor: { anchorText: string; roughFraction: number } | null;
+  webview: vscode.Webview;
+}
+
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly context: vscode.ExtensionContext;
+  private anchorStates = new Map<string, PanelAnchorState>();
+  private pendingPreviewAnchors = new Map<string, { anchorText: string; lineIndex: number; totalLines: number }>();
+  private activeDocUri: string | null = null;
+  private pendingRawAnchor: { anchorText: string; roughFraction: number } | null = null;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -38,12 +47,30 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const writableSchemes = new Set(['file', 'untitled']);
     const isReadOnly = !writableSchemes.has(document.uri.scheme);
 
+    // Register scroll state for this document
+    const docKey = document.uri.toString();
+    this.anchorStates.set(docKey, { lastAnchor: null, webview: webviewPanel.webview });
+    this.activeDocUri = docKey;
+
     // Create sync manager
     const syncManager = new DocumentSyncManager(document, webview, isReadOnly);
 
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
-      syncManager.handleWebviewMessage(msg).catch((err) => {
+      if (msg.type === 'scrollAnchorUpdate') {
+        const state = this.anchorStates.get(docKey);
+        if (state) state.lastAnchor = { anchorText: msg.anchorText, roughFraction: msg.roughFraction };
+        return;
+      }
+      syncManager.handleWebviewMessage(msg).then(() => {
+        if (msg.type === 'ready') {
+          const pendingAnchor = this.pendingPreviewAnchors.get(docKey);
+          if (pendingAnchor) {
+            this.pendingPreviewAnchors.delete(docKey);
+            webview.postMessage({ type: 'scrollToAnchor', ...pendingAnchor });
+          }
+        }
+      }).catch((err) => {
         console.error('[LiveMarkdown] Error handling webview message:', err);
       });
     });
@@ -60,12 +87,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Re-sync when panel becomes visible again
     const viewStateDisposable = webviewPanel.onDidChangeViewState(() => {
       if (webviewPanel.visible) {
-        // Webview will send 'ready' when it reconnects, but also proactively send update
         webview.postMessage({
           type: 'externalUpdate',
           markdown: document.getText(),
-          version: 0, // Force refresh
+          version: 0,
         });
+        this.activeDocUri = document.uri.toString();
       }
     });
 
@@ -74,7 +101,31 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       messageDisposable.dispose();
       changeDisposable?.dispose();
       viewStateDisposable.dispose();
+      this.anchorStates.delete(docKey);
+      if (this.activeDocUri === docKey) this.activeDocUri = null;
     });
+  }
+
+  getLastWebviewScrollAnchor(docUri: string): { anchorText: string; roughFraction: number } | null {
+    return this.anchorStates.get(docUri)?.lastAnchor ?? null;
+  }
+
+  setPendingPreviewAnchor(docUri: string, anchor: { anchorText: string; lineIndex: number; totalLines: number }): void {
+    this.pendingPreviewAnchors.set(docUri, anchor);
+  }
+
+  getActiveDocUri(): string | null {
+    return this.activeDocUri;
+  }
+
+  storePendingRawAnchor(anchor: { anchorText: string; roughFraction: number }): void {
+    this.pendingRawAnchor = anchor;
+  }
+
+  consumePendingRawAnchor(): { anchorText: string; roughFraction: number } | null {
+    const a = this.pendingRawAnchor;
+    this.pendingRawAnchor = null;
+    return a;
   }
 
 }

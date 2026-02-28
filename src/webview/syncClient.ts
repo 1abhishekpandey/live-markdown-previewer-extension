@@ -13,7 +13,12 @@ export class SyncClient {
   private isExternalUpdate: boolean = false;
   private currentVersion: number = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private scrollTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingExternalUpdate: ExtensionToWebviewMessage | null = null;
+  // True once the first 'init' message has been handled and content is in the DOM.
+  private isInitialized: boolean = false;
+  // Buffered scroll anchor for when 'scrollToAnchor' arrives before 'init'.
+  private pendingScrollAnchor: { anchorText: string; lineIndex: number; totalLines: number } | null = null;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private debounceDelayInMs: number = 300;
   private onFirstInit: (() => void) | undefined;
@@ -34,6 +39,41 @@ export class SyncClient {
     this.setupKeyboardShortcuts();
 
     this.vscode.postMessage({ type: 'ready' });
+
+    this.scrollTimer = null;
+
+    window.addEventListener('scroll', () => {
+      if (this.scrollTimer !== null) clearTimeout(this.scrollTimer);
+      this.scrollTimer = setTimeout(() => {
+        const totalSize = this.editor.state.doc.content.size;
+        const topPos = this.editor.view.posAtCoords({ left: 0, top: 0 });
+        let anchorText = '';
+        let roughFraction = 0;
+        if (topPos && totalSize > 0) {
+          const resolvedPos = this.editor.state.doc.resolve(topPos.pos);
+          const depth = resolvedPos.depth;
+          let blockNode;
+          if (depth > 1) {
+            blockNode = resolvedPos.node(1);
+          } else {
+            blockNode = resolvedPos.node(depth);
+          }
+          anchorText = blockNode.textContent.trim();
+          roughFraction = topPos.pos / totalSize;
+        } else {
+          const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+          roughFraction = scrollable > 0 ? window.scrollY / scrollable : 0;
+        }
+        if (anchorText) {
+          this.vscode.postMessage({
+            type: 'scrollAnchorUpdate',
+            anchorText,
+            roughFraction: Math.max(0, Math.min(1, roughFraction)),
+          });
+        }
+        this.scrollTimer = null;
+      }, 150);
+    }, { passive: true });
   }
 
   handleMessage(msg: ExtensionToWebviewMessage): void {
@@ -50,7 +90,23 @@ export class SyncClient {
           this.onFirstInit();
           this.onFirstInit = undefined;
         }
+        this.isInitialized = true;
+        if (this.pendingScrollAnchor !== null) {
+          const anchor = this.pendingScrollAnchor;
+          this.pendingScrollAnchor = null;
+          requestAnimationFrame(() => this.applyScrollAnchor(anchor));
+        }
         break;
+
+      case 'scrollToAnchor': {
+        if (!this.isInitialized) {
+          this.pendingScrollAnchor = { anchorText: msg.anchorText, lineIndex: msg.lineIndex, totalLines: msg.totalLines };
+        } else {
+          const anchor = { anchorText: msg.anchorText, lineIndex: msg.lineIndex, totalLines: msg.totalLines };
+          requestAnimationFrame(() => this.applyScrollAnchor(anchor));
+        }
+        break;
+      }
 
       case 'externalUpdate': {
         if (msg.version <= this.currentVersion) return;
@@ -63,6 +119,67 @@ export class SyncClient {
         this.applyExternalUpdate(msg);
         break;
       }
+    }
+  }
+
+  private applyScrollAnchor(
+    anchor: { anchorText: string; lineIndex: number; totalLines: number },
+    retriesLeft: number = 5
+  ): void {
+    const doc = this.editor.state.doc;
+    const totalSize = doc.content.size;
+    const candidates: { pos: number; offset: number }[] = [];
+
+    doc.forEach((node, offset) => {
+      const text = node.textContent.trim();
+      if (text === anchor.anchorText) {
+        candidates.push({ pos: offset + 1, offset });
+      }
+    });
+
+    // If exact match failed, try prefix matching
+    if (candidates.length === 0 && anchor.anchorText.length > 20) {
+      const prefix = anchor.anchorText.substring(0, 30);
+      doc.forEach((node, offset) => {
+        const text = node.textContent.trim();
+        if (text.startsWith(prefix)) {
+          candidates.push({ pos: offset + 1, offset });
+        }
+      });
+    }
+
+    let targetPos: number;
+    if (candidates.length === 0) {
+      const roughFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
+      targetPos = Math.min(Math.floor(roughFraction * totalSize), Math.max(0, totalSize - 1));
+    } else if (candidates.length === 1) {
+      targetPos = candidates[0].pos;
+    } else {
+      const expectedFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
+      let best = candidates[0];
+      let bestDiff = Infinity;
+      for (const c of candidates) {
+        const nodeFraction = c.offset / totalSize;
+        const diff = Math.abs(nodeFraction - expectedFraction);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          best = c;
+        }
+      }
+      targetPos = best.pos;
+    }
+
+    try {
+      const coords = this.editor.view.coordsAtPos(targetPos);
+      window.scrollTo({ top: coords.top + window.scrollY, behavior: 'instant' as ScrollBehavior });
+    } catch {
+      if (retriesLeft > 0) {
+        setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
+        return;
+      }
+      const roughFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo({ top: roughFraction * Math.max(0, scrollable) });
     }
   }
 
@@ -160,6 +277,13 @@ export class SyncClient {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+
+    if (this.scrollTimer !== null) {
+      clearTimeout(this.scrollTimer);
+      this.scrollTimer = null;
+    }
+
+    this.pendingScrollAnchor = null;
 
     if (this.keydownHandler !== null) {
       document.removeEventListener('keydown', this.keydownHandler);

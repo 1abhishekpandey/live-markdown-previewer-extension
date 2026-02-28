@@ -27,6 +27,7 @@ html, body {
 .ProseMirror {
   outline: none;
   min-height: 200px;
+  padding-bottom: calc(100vh - 80px);
 }
 
 .ProseMirror > * + * {

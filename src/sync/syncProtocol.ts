@@ -12,7 +12,14 @@ export interface ExternalUpdateMessage {
   version: number;
 }
 
-export type ExtensionToWebviewMessage = InitMessage | ExternalUpdateMessage;
+export interface ScrollToAnchorMessage {
+  type: 'scrollToAnchor';
+  anchorText: string;
+  lineIndex: number;
+  totalLines: number;
+}
+
+export type ExtensionToWebviewMessage = InitMessage | ExternalUpdateMessage | ScrollToAnchorMessage;
 
 // Webview → Extension messages
 
@@ -39,9 +46,16 @@ export interface SaveMessage {
   markdown: string;
 }
 
+export interface ScrollAnchorUpdateMessage {
+  type: 'scrollAnchorUpdate';
+  anchorText: string;
+  roughFraction: number;
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditMessage
   | UndoMessage
   | RedoMessage
-  | SaveMessage;
+  | SaveMessage
+  | ScrollAnchorUpdateMessage;
