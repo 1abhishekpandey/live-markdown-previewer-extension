@@ -1,14 +1,12 @@
 Pre-Phase 2 Improvements
 
-Suggested enhancements to md-editor before starting Phase 2 (Copy Toolbar).
-These address spec gaps, UX discoverability, and real-world markdown compatibility.
+Suggested enhancements to md-editor before starting Phase 2 (Copy Toolbar). These address spec gaps, UX discoverability, and real-world markdown compatibility.
 
-Each feature is grouped into a phase for incremental delivery.
-Mark `[x]` on the phase heading after all its items are complete.
+Each feature is grouped into a phase for incremental delivery. Mark `[x]` on the phase heading after all its items are complete.
 
 ---
 
-# - [ ] Phase A — Quick Wins
+# - \[ \] Phase A — Quick Wins
 
 ## A2: Read-Only Mode ✅
 
@@ -17,17 +15,27 @@ Mark `[x]` on the phase heading after all its items are complete.
 Detects read-only documents (e.g. git base versions from Source Control) using a URI scheme whitelist (`file` and `untitled` are writable; all other schemes default to read-only). Disables editing in TipTap, shows a centred "Read-only" banner, and skips the edit pipeline entirely.
 
 ### Scope
+
 - [x] Detect read-only state via `document.uri.scheme` whitelist (`file`, `untitled` = writable)
+
 - [x] Call `editor.setEditable(false)` on TipTap when the document is read-only
+
 - [x] Visual indicator: fixed "Read-only" banner centred at top of viewport
+
 - [x] Skip `onDidChangeTextDocument` listener for read-only documents
+
 - [x] Guard edit/save/undo/redo handlers on both extension and webview sides
+
 - [x] Keyboard shortcuts (Cmd+Z, Cmd+Shift+Z, Cmd+S) still `preventDefault` but skip message posting
 
 ### Acceptance Criteria
+
 - [x] Opening a file from Source Control "Changes" shows it as non-editable
+
 - [x] Typing in a read-only view does nothing (no silent failures)
+
 - [x] Visual cue distinguishes read-only from editable mode
+
 - [x] Files opened normally remain fully editable
 
 ---
@@ -39,22 +47,32 @@ Detects read-only documents (e.g. git base versions from Source Control) using a
 Users sometimes need to see or edit the raw markdown source — to fix syntax issues, inspect frontmatter, or copy exact markup. Toggles between the WYSIWYG TipTap view and VS Code's built-in default text editor (with full syntax highlighting, line numbers, search, minimap) using `workbench.action.toggleEditorType`. The switch happens in-place within the same tab.
 
 ### Scope
+
 - [x] Toggle button (`</>` icon) in the editor title bar to switch between WYSIWYG and VS Code's default text editor
+
 - [x] Raw view: VS Code's built-in text editor with syntax highlighting, line numbers, and all standard editor features
+
 - [x] Edits in raw view sync back to the document via VS Code's native text editor pipeline
+
 - [x] Switching back to WYSIWYG re-parses the markdown into TipTap
+
 - [x] Toggle state does not persist across tab reopens (defaults to WYSIWYG)
 
 ### Acceptance Criteria
+
 - [x] Title bar shows a toggle button to switch views
+
 - [x] Raw view displays the exact markdown source with syntax highlighting and line numbers
+
 - [x] Edits in raw view are saved to disk like normal edits
+
 - [x] Switching WYSIWYG → Raw → WYSIWYG preserves content without data loss
+
 - [x] Keyboard shortcut (`Cmd+Shift+M` / `Ctrl+Shift+M`) toggles between views
 
 ---
 
-# - [ ] Phase B — UX & Discoverability
+# - \[ \] Phase B — UX & Discoverability
 
 ## B1: Formatting Toolbar on Selection
 
@@ -63,6 +81,7 @@ Users sometimes need to see or edit the raw markdown source — to fix syntax is
 All formatting is keyboard-shortcut-only (`Cmd+B`, `Cmd+I`, `Cmd+K`). Users who don't know shortcuts have no way to discover formatting options. This is separate from Phase 2's copy toolbar — this is about text formatting actions.
 
 ### Scope
+
 - Floating toolbar appears near the text selection (above or below, depending on viewport)
 - Buttons: **Bold**, *Italic*, ~~Strikethrough~~, `Code`, Link, Heading dropdown
 - Each button toggles the corresponding TipTap command on the selection
@@ -70,15 +89,20 @@ All formatting is keyboard-shortcut-only (`Cmd+B`, `Cmd+I`, `Cmd+K`). Users who 
 - Active state shown on buttons when selection already has that formatting
 
 ### Acceptance Criteria
-- [ ] Selecting text shows a floating toolbar within ~200ms
+
+- [ ] Selecting text shows a floating toolbar within \~200ms
+
 - [ ] Clicking Bold/Italic/etc. applies formatting and keeps selection
+
 - [ ] Toolbar shows active state for already-formatted text (e.g., bold button highlighted if selection is bold)
+
 - [ ] Toolbar positions correctly near selection, stays within viewport
+
 - [ ] Toolbar dismisses cleanly without interfering with editing
 
 ---
 
-# - [ ] Phase C — Markdown Compatibility
+# - \[ \] Phase C — Markdown Compatibility
 
 ## C1: YAML Frontmatter Handling
 
@@ -87,15 +111,20 @@ All formatting is keyboard-shortcut-only (`Cmd+B`, `Cmd+I`, `Cmd+K`). Users who 
 YAML frontmatter (`---` delimited block at file start) is standard in Hugo, Jekyll, Docusaurus, Obsidian, and many other tools. Currently it renders as visible text, which is noisy and editable in ways that can break the frontmatter structure.
 
 ### Scope
+
 - Detect frontmatter: block between `---` markers at the very start of the file
 - Display option A: Collapse into a single clickable "Frontmatter" bar (click to expand/edit raw YAML)
 - Display option B: Render as a styled metadata block with key-value pairs
 - Frontmatter must round-trip perfectly (no data loss on save)
 
 ### Acceptance Criteria
+
 - [ ] Files with YAML frontmatter display it distinctly from body content
+
 - [ ] Frontmatter content is preserved exactly on save (no reordering, no stripping)
+
 - [ ] Files without frontmatter are unaffected
+
 - [ ] Editing frontmatter values works without breaking the `---` delimiters
 
 ---
@@ -109,21 +138,30 @@ The spec lists "alerts/admonitions" under GFM support. GitHub renders `> [!NOTE]
 Decoration-based ProseMirror plugin (`gfmAlert.ts`) scans all `blockquote` nodes on each document change and attaches `gfm-alert gfm-alert-{type}` CSS classes when the first paragraph matches `[!TYPE]`. CSS does the rest — no changes to the sync protocol or serialisation.
 
 ### Scope
+
 - [x] Parse the five GitHub alert types from blockquote syntax
+
 - [x] Render with distinct styling: icon + coloured left border + background tint (matching GitHub's rendering)
+
 - [x] Colours adapt to VS Code theme (`--vscode-*` variables with fallback defaults)
+
 - [x] Typing `> [!NOTE]` triggers the alert style reactively (fires on every document change)
+
 - [x] Alerts serialise back to standard GFM blockquote syntax on save (no custom syntax)
 
 ### Acceptance Criteria
+
 - [x] All five alert types render with distinct icon and colour
+
 - [x] Alerts display correctly in both light and dark themes
+
 - [x] Typing the alert syntax inline triggers the styled rendering
+
 - [x] Alerts round-trip to valid GFM markdown (no custom syntax in saved file)
 
 ---
 
-# - [ ] Phase D — Test Suite
+# - \[ \] Phase D — Test Suite
 
 ## D1: Unit & Integration Tests
 
@@ -134,24 +172,32 @@ The extension has zero tests. The sync logic is the most critical and fragile la
 ### Scope
 
 #### Unit Tests
+
 - **DocumentSyncManager**: echo prevention, version counter logic, `trimEnd` normalisation, debounce behaviour
 - **SyncClient**: external update handling, edit batching, cursor preservation
 - **syncProtocol types**: message construction and discrimination
 
 #### Integration Tests
+
 - Webview ↔ Extension round-trip: edit in webview → verify TextDocument content
 - External edit → verify webview receives update
 - Undo/redo forwarding
 - Search bar: find matches, navigation, highlight state
 
 #### Test Tooling
+
 - Framework: Vitest or Jest (pick one, keep it simple)
 - VS Code extension testing: `@vscode/test-electron` for integration tests
 - Mock `vscode` API for unit tests
 
 ### Acceptance Criteria
+
 - [ ] Unit tests cover sync echo prevention (both directions)
+
 - [ ] Unit tests cover version counter staleness rejection
+
 - [ ] Integration test: edit → save → file content matches
+
 - [ ] Tests run in CI (or at minimum via `npm test`)
+
 - [ ] Coverage for search bar match counting and navigation
