@@ -4,14 +4,13 @@
   after completing each task. Change [ ] to [x] for completed items.
 -->
 
-VS Code Extensions — Markdown Editor & Smart Diff
+VS Code Extensions — Markdown Editor
 
 ## Overview
 
-Two VS Code extensions that address daily friction with markdown editing and source control diffs. The goal is to bring Android Studio's reliable diff experience and Notion's inline editing to VS Code — without forking VS Code.
+A VS Code extension that addresses daily friction with markdown editing. The goal is to bring Notion's inline editing experience to VS Code — without forking VS Code.
 
-**Extension 1 (MVP):** `md-editor` — Notion-like inline markdown editor with copy toolbar
-**Extension 2 (v2):** `smart-diff` — Custom diff viewer with single-tab reuse and reliable collapse toggle
+**Extension (MVP):** `md-editor` — Notion-like inline markdown editor with copy toolbar
 
 ## Extension 1: Markdown Editor + Copy Toolbar
 
@@ -130,80 +129,6 @@ Two VS Code extensions that address daily friction with markdown editing and sou
 - Icon: two-state toggle (e.g., `{ }` icon for raw mode, rendered icon for default)
 - Tooltip: "Copy mode: Rendered" / "Copy mode: Raw Markdown"
 
----
-
-## Extension 2: Smart Diff (v2 — Future)
-
-### Functional Requirements
-
-#### Core: Single Tab Reuse
-- All diffs opened from the **Source Control panel** reuse a single tab
-- Clicking a different file in Staged Changes or Working Tree replaces the current diff **immediately** (no confirmation dialog)
-- Applies to both Staged Changes and Changes (Working Tree) sections
-- Normal file opens (from Explorer, Cmd+P, etc.) continue opening in new tabs as usual
-
-#### Core: Binary Diff Toggle
-- Only **two modes** — no intermediate states:
-  - **Collapsed**: Shows only changed fragments with collapsed unchanged regions (like Android Studio)
-  - **Full File**: Shows the complete file with changes highlighted
-- Toggle is a single button in the diff viewer toolbar
-- Behaviour is **predictable and reliable** — always toggles between exactly these two states
-- Default: Collapsed
-
-#### What This Extension Does NOT Do
-- No inline commenting or code review features
-- No 3-way merge view (staged + working tree remain separate views in the same tab)
-- No modifications to VS Code's Source Control panel layout
-
-### Technical Specification
-
-#### Architecture
-- Built using VS Code **Custom Editor API** with a **webview-based diff viewer**
-- Replaces VS Code's native diff editor for Source Control operations
-- Uses a diff library (e.g., **diff-match-patch** or **jsdiff**) to compute diffs
-- Renders side-by-side diff with syntax highlighting (via **Shiki** or **Prism**)
-
-#### Tab Management
-- Registers a `WebviewPanel` with a fixed `viewColumn` and `viewType`
-- On Source Control file click:
-  1. Check if a smart-diff tab already exists
-  2. If yes: replace content with new file's diff
-  3. If no: create a new smart-diff tab
-- Uses VS Code's `onDidChangeActiveTextEditor` and SCM API to intercept file opens
-
-#### Collapse Toggle
-- **Collapsed mode**: Groups consecutive unchanged lines into a clickable "N lines hidden" region
-- **Full mode**: Renders all lines with change highlighting
-- Toggle state persists within the session
-
-#### Data Flow
-```
-┌──────────────────────────────────────────────┐
-│  Source Control Panel                        │
-│  ├── Staged Changes                          │
-│  │   ├── file1.ts  ──┐                      │
-│  │   └── file2.ts  ──┤  click               │
-│  ├── Changes          │                      │
-│  │   ├── file1.ts  ──┤                      │
-│  │   └── file3.ts  ──┘                      │
-│  └────────────────────┼──────────────────────┘
-│                       ▼                      │
-│  ┌─────────────────────────────────────────┐ │
-│  │  Smart Diff Tab (single, reused)        │ │
-│  │  ┌────────────────┬────────────────┐    │ │
-│  │  │  Original      │  Modified      │    │ │
-│  │  │  (base/HEAD)   │  (staged/WT)   │    │ │
-│  │  │                │                │    │ │
-│  │  │  ≫ 14 lines ≪ │  ≫ 14 lines ≪ │    │ │
-│  │  │  - old line    │  + new line    │    │ │
-│  │  │  ≫ 8 lines ≪  │  ≫ 8 lines ≪  │    │ │
-│  │  └────────────────┴────────────────┘    │ │
-│  │  [Collapsed ● ◯ Full]                  │ │
-│  └─────────────────────────────────────────┘ │
-└──────────────────────────────────────────────┘
-```
-
----
 
 ## Implementation Phases
 
@@ -228,13 +153,6 @@ Two VS Code extensions that address daily friction with markdown editing and sou
 4. Undo/redo integration with VS Code
 5. Search (Cmd+F) support within the webview
 
-### Phase 4: Smart Diff Extension (v2)
-1. Scaffold second extension with Custom Editor provider
-2. Build diff computation layer (jsdiff)
-3. Build side-by-side webview renderer with syntax highlighting
-4. Implement collapse/expand toggle for unchanged regions
-5. Implement single-tab reuse via SCM API interception
-6. Test: click files in Source Control → same tab, reliable toggle
 
 ## Progress Tracker
 
@@ -253,11 +171,11 @@ Two VS Code extensions that address daily friction with markdown editing and sou
 - [x] Verify: open .md, edit inline, save, content persists
 
 ### Phase 2: Copy Toolbar
-- [ ] Floating toolbar component (appears on text selection)
-- [ ] Copy as rendered (HTML to clipboard)
-- [ ] Toggle button in editor title bar (raw/rendered)
-- [ ] Copy as raw markdown when toggle is ON
-- [ ] Verify: copy → paste in Slack (rich text) and code editor (raw)
+- [x] Floating toolbar component (appears on text selection)
+- [x] Copy as rendered (HTML to clipboard)
+- [x] Toggle button in editor title bar (raw/rendered)
+- [x] Copy as raw markdown when toggle is ON
+- [x] Verify: copy → paste in Slack (rich text) and code editor (raw)
 
 ### Phase 3: Polish & Edge Cases
 - [x] VS Code theme integration (light/dark/high contrast)
@@ -266,32 +184,14 @@ Two VS Code extensions that address daily friction with markdown editing and sou
 - [x] Cmd+F search within webview
 - [x] Large file handling
 
-### Phase 4: Smart Diff (v2)
-- [ ] Scaffold smart-diff extension
-- [ ] Diff computation layer
-- [ ] Side-by-side webview renderer with syntax highlighting
-- [ ] Collapse/expand toggle
-- [ ] Single-tab reuse via SCM API
-- [ ] Verify: Source Control click → same tab, binary toggle works
-
-### Final Verification
-- [ ] Run extension in VS Code Extension Development Host
-- [ ] Test on real .md files (GFM tables, code blocks, task lists)
-- [ ] Test copy toolbar with multiple paste targets
-- [ ] Bundle size check
-- [ ] Publish-ready packaging (vsix)
 
 ## Decisions Made
 
 | Decision | Choice | Reasoning |
 |----------|--------|-----------|
-| Extension packaging | Two extensions (md-editor + smart-diff) | Independent concerns, independent release cycles |
-| Diff implementation | Custom webview | Full control over UX, reliable collapse toggle |
 | Editor library | TipTap (recommended) | Closest to Notion UX, GFM extensions available |
 | Copy default | Rendered (rich text) | Matches existing VS Code preview copy behaviour |
 | Copy toggle | Persistent toolbar button | Inspired by Claude's UI layout toggles |
-| Diff tab behaviour | Replace immediately | No confirmation — fast switching like Android Studio |
-| Diff modes | Binary only (collapsed/full) | Predictable, no intermediate states |
 | Image handling | Manual (v1) | Keep scope tight for MVP |
 | File types | .md only | Focused scope, avoids edge cases with other formats |
 | MVP scope | Markdown editor first | More frequent daily use case |
@@ -301,11 +201,10 @@ Two VS Code extensions that address daily friction with markdown editing and sou
 
 - ~~TipTap vs Milkdown: final decision after prototyping both in a webview~~ **Resolved: TipTap chosen**
 - Performance characteristics of TipTap in a VS Code webview for files > 1000 lines
-- VS Code SCM API limitations for intercepting diff opens (research needed for Phase 4)
 
 ## Delivery Plan
 
-> **Implementation Strategy**: This work is broken into sequential phases across two extensions.
+> **Implementation Strategy**: This work is broken into sequential phases.
 > Complete each phase and get approval before starting the next.
 > Update checkboxes as phases are completed.
 
@@ -380,38 +279,11 @@ Two VS Code extensions that address daily friction with markdown editing and sou
 
 **Dependencies:** Phase 2 must be merged
 
----
-
-### Phase 4: Smart Diff Extension (v2)
-**PR Title:** `feat: smart-diff extension with single-tab reuse and collapse toggle`
-**Extension:** smart-diff (separate extension)
-**Status:** [ ] Not Started | [ ] In Progress | [ ] In Review | [ ] Merged
-
-**Scope:**
-- Extension scaffold with Custom Editor / WebviewPanel
-- Diff computation layer (jsdiff)
-- Side-by-side webview renderer with syntax highlighting (Shiki/Prism)
-- Collapse/expand toggle (binary: collapsed ↔ full file)
-- Single-tab reuse for all Source Control diff opens
-- Immediate file switching (no confirmation)
-
-**Acceptance Criteria:**
-- [ ] Clicking a file in Source Control opens diff in a dedicated tab
-- [ ] Clicking another file replaces the diff in the same tab
-- [ ] Collapsed mode shows only changed fragments with "N lines hidden" regions
-- [ ] Full mode shows complete file with changes highlighted
-- [ ] Toggle reliably switches between exactly two states
-- [ ] Normal file opens (Explorer, Cmd+P) still use new tabs
-
-**Dependencies:** Independent of md-editor. Can start anytime after Phase 1 for learnings.
-
----
-
 ### Implementation Notes
 
-- **Total Phases:** 4 (3 for md-editor, 1 for smart-diff)
-- **Estimated Review Complexity:** Phase 1 High, Phase 2 Low, Phase 3 Medium, Phase 4 High
-- **Critical Path:** Phase 1 → Phase 2 → Phase 3 (sequential). Phase 4 is independent.
+- **Total Phases:** 3
+- **Estimated Review Complexity:** Phase 1 High, Phase 2 Low, Phase 3 Medium
+- **Critical Path:** Phase 1 → Phase 2 → Phase 3 (sequential).
 
 ## Pending Discussion
 
