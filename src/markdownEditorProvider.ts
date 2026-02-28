@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { randomBytes } from 'crypto';
 import { DocumentSyncManager } from './sync/documentSync';
 
 interface PanelAnchorState {
@@ -71,7 +72,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
           }
         }
       }).catch((err) => {
-        console.error('[LiveMarkdown] Error handling webview message:', err);
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        console.error('[LiveMarkdown] Error handling webview message:', message);
       });
     });
 
@@ -156,10 +158,5 @@ function getWebviewContent(
 }
 
 function getNonce(): string {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+  return randomBytes(16).toString('hex');
 }

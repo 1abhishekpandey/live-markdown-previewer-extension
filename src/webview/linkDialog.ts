@@ -1,5 +1,15 @@
 import { Editor, Extension } from '@tiptap/core';
 
+const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'ftp:', 'mailto:']);
+
+function isSafeUrl(url: string): boolean {
+  try {
+    return ALLOWED_PROTOCOLS.has(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
+
 let activeOverlay: HTMLDivElement | null = null;
 
 function getExistingLinkUrl(editor: Editor): string {
@@ -73,6 +83,7 @@ export function showLinkDialog(editor: Editor): void {
       event.preventDefault();
       const url = input.value.trim();
       if (url) {
+        if (!isSafeUrl(url)) return;
         editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
       } else {
         editor.chain().focus().extendMarkRange('link').unsetLink().run();

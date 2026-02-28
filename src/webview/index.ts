@@ -28,8 +28,10 @@ const syncClient = new SyncClient(editor, vscode, () => {
   loadingOverlay?.classList.add('hidden');
 });
 
-window.addEventListener('message', (event: MessageEvent<ExtensionToWebviewMessage>) => {
-  syncClient.handleMessage(event.data);
+window.addEventListener('message', (event: MessageEvent) => {
+  const data = event.data;
+  if (typeof data !== 'object' || data === null || typeof data.type !== 'string') return;
+  syncClient.handleMessage(data as ExtensionToWebviewMessage);
 });
 
 // Code wrap toggle
