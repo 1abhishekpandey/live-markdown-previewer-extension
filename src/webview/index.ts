@@ -1,6 +1,7 @@
 import './styles.css';
 import { createEditor } from './editor';
 import { SyncClient } from './syncClient';
+import { setCopyMode } from './copyToolbar';
 import type { ExtensionToWebviewMessage } from '../sync/syncProtocol';
 
 declare function acquireVsCodeApi(): {
@@ -49,6 +50,23 @@ toggle.addEventListener('click', () => {
   editorElement.classList.toggle('code-wrap', codeWrap);
   toggle.textContent = codeWrap ? 'Wrap: On' : 'Wrap: Off';
   vscode.setState({ ...((vscode.getState() as object) ?? {}), codeWrap });
+});
+
+// Copy mode toggle
+let copyModeRaw = true;
+setCopyMode(copyModeRaw);
+
+const copyToggle = document.createElement('button');
+copyToggle.className = 'copy-mode-toggle';
+copyToggle.textContent = copyModeRaw ? 'Copy: Raw' : 'Copy: Rich';
+copyToggle.title = copyModeRaw ? 'Copy mode: Raw Markdown' : 'Copy mode: Rendered';
+document.body.appendChild(copyToggle);
+
+copyToggle.addEventListener('click', () => {
+  copyModeRaw = !copyModeRaw;
+  setCopyMode(copyModeRaw);
+  copyToggle.textContent = copyModeRaw ? 'Copy: Raw' : 'Copy: Rich';
+  copyToggle.title = copyModeRaw ? 'Copy mode: Raw Markdown' : 'Copy mode: Rendered';
 });
 
 syncClient.init();

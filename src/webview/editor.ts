@@ -13,6 +13,7 @@ import { Markdown } from 'tiptap-markdown';
 import { LinkDialogExtension } from './linkDialog';
 import { SearchBarExtension } from './searchBar';
 import { GfmAlertExtension } from './gfmAlert';
+import { CopyToolbarExtension } from './copyToolbar';
 
 const lowlight = createLowlight(common);
 
@@ -57,7 +58,7 @@ export function createEditor(element: HTMLElement): Editor {
         tightLists: true,
         bulletListMarker: '-',
         transformPastedText: true,
-        transformCopiedText: true,
+        transformCopiedText: false,
       }),
       Table.configure({ resizable: false }),
       TableRow,
@@ -69,6 +70,7 @@ export function createEditor(element: HTMLElement): Editor {
       LinkDialogExtension,
       SearchBarExtension,
       GfmAlertExtension,
+      CopyToolbarExtension,
     ],
     editorProps: {
       attributes: {
