@@ -12,6 +12,7 @@ import { common, createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
 import { LinkDialogExtension } from './linkDialog';
 import { SearchBarExtension } from './searchBar';
+import { GfmAlertExtension } from './gfmAlert';
 
 const lowlight = createLowlight(common);
 
@@ -67,6 +68,7 @@ export function createEditor(element: HTMLElement): Editor {
       CustomCodeBlock,
       LinkDialogExtension,
       SearchBarExtension,
+      GfmAlertExtension,
     ],
     editorProps: {
       attributes: {

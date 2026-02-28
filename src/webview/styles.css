@@ -184,6 +184,78 @@ html, body {
   margin: 0;
 }
 
+/* GFM Alerts — overrides default blockquote for [!TYPE] callouts */
+.ProseMirror .gfm-alert {
+  border-left: 4px solid;
+  border-radius: 0 4px 4px 0;
+  margin: 0.75em 0;
+  padding: 8px 16px;
+  opacity: 1;            /* undo the 0.85 opacity on plain blockquotes */
+  color: inherit;
+}
+
+.ProseMirror .gfm-alert p { margin: 0; }
+
+/* Type: NOTE — blue */
+.ProseMirror .gfm-alert-note {
+  border-color: var(--vscode-editorInfo-foreground, #3794ff);
+  background: rgba(55, 148, 255, 0.08);
+}
+.ProseMirror .gfm-alert-note > p:first-child {
+  color: var(--vscode-editorInfo-foreground, #3794ff);
+  font-weight: 600;
+  font-size: 0.875em;
+}
+.ProseMirror .gfm-alert-note > p:first-child::before { content: 'ℹ  '; }
+
+/* Type: TIP — green */
+.ProseMirror .gfm-alert-tip {
+  border-color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+  background: rgba(63, 185, 80, 0.08);
+}
+.ProseMirror .gfm-alert-tip > p:first-child {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+  font-weight: 600;
+  font-size: 0.875em;
+}
+.ProseMirror .gfm-alert-tip > p:first-child::before { content: '💡  '; }
+
+/* Type: IMPORTANT — purple */
+.ProseMirror .gfm-alert-important {
+  border-color: var(--vscode-terminal-ansiMagenta, #a371f7);
+  background: rgba(163, 113, 247, 0.08);
+}
+.ProseMirror .gfm-alert-important > p:first-child {
+  color: var(--vscode-terminal-ansiMagenta, #a371f7);
+  font-weight: 600;
+  font-size: 0.875em;
+}
+.ProseMirror .gfm-alert-important > p:first-child::before { content: '❗  '; }
+
+/* Type: WARNING — amber */
+.ProseMirror .gfm-alert-warning {
+  border-color: var(--vscode-editorWarning-foreground, #cca700);
+  background: rgba(204, 167, 0, 0.08);
+}
+.ProseMirror .gfm-alert-warning > p:first-child {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  font-weight: 600;
+  font-size: 0.875em;
+}
+.ProseMirror .gfm-alert-warning > p:first-child::before { content: '⚠  '; }
+
+/* Type: CAUTION — red */
+.ProseMirror .gfm-alert-caution {
+  border-color: var(--vscode-editorError-foreground, #f85149);
+  background: rgba(248, 81, 73, 0.08);
+}
+.ProseMirror .gfm-alert-caution > p:first-child {
+  color: var(--vscode-editorError-foreground, #f85149);
+  font-weight: 600;
+  font-size: 0.875em;
+}
+.ProseMirror .gfm-alert-caution > p:first-child::before { content: '⛔  '; }
+
 /* Horizontal rule */
 .ProseMirror hr {
   border: none;

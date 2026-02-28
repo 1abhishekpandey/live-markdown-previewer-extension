@@ -100,24 +100,26 @@ YAML frontmatter (`---` delimited block at file start) is standard in Hugo, Jeky
 
 ---
 
-## C2: GFM Alerts / Admonitions
+## C2: GFM Alerts / Admonitions ✅
 
-**Effort:** Medium
+**Effort:** Medium — **Completed**
 
 The spec lists "alerts/admonitions" under GFM support. GitHub renders `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, and `> [!CAUTION]` as styled callout blocks. These are increasingly common in README and documentation files.
 
+Decoration-based ProseMirror plugin (`gfmAlert.ts`) scans all `blockquote` nodes on each document change and attaches `gfm-alert gfm-alert-{type}` CSS classes when the first paragraph matches `[!TYPE]`. CSS does the rest — no changes to the sync protocol or serialisation.
+
 ### Scope
-- Parse the five GitHub alert types from blockquote syntax
-- Render with distinct styling: icon + coloured left border + background tint (matching GitHub's rendering)
-- Colours should adapt to VS Code theme (use `--vscode-*` variables where possible, fallback to accessible defaults)
-- Typing `> [!NOTE]` followed by Enter should activate the alert style
-- Alerts must serialise back to standard GFM blockquote syntax on save
+- [x] Parse the five GitHub alert types from blockquote syntax
+- [x] Render with distinct styling: icon + coloured left border + background tint (matching GitHub's rendering)
+- [x] Colours adapt to VS Code theme (`--vscode-*` variables with fallback defaults)
+- [x] Typing `> [!NOTE]` triggers the alert style reactively (fires on every document change)
+- [x] Alerts serialise back to standard GFM blockquote syntax on save (no custom syntax)
 
 ### Acceptance Criteria
-- [ ] All five alert types render with distinct icon and colour
-- [ ] Alerts display correctly in both light and dark themes
-- [ ] Typing the alert syntax inline triggers the styled rendering
-- [ ] Alerts round-trip to valid GFM markdown (no custom syntax in saved file)
+- [x] All five alert types render with distinct icon and colour
+- [x] Alerts display correctly in both light and dark themes
+- [x] Typing the alert syntax inline triggers the styled rendering
+- [x] Alerts round-trip to valid GFM markdown (no custom syntax in saved file)
 
 ---
 
