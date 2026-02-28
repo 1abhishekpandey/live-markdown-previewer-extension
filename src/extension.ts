@@ -5,13 +5,13 @@ export function activate(context: vscode.ExtensionContext) {
 	const provider = new MarkdownEditorProvider(context);
 
 	const disposable = vscode.window.registerCustomEditorProvider(
-		'mdEditor.markdownEditor',
+		'liveMarkdown.markdownEditor',
 		provider,
 		{ webviewOptions: { retainContextWhenHidden: true } }
 	);
 
 	const toggleCmd = vscode.commands.registerCommand(
-		'mdEditor.toggleRawMarkdown',
+		'liveMarkdown.toggleRawMarkdown',
 		() => vscode.commands.executeCommand('workbench.action.toggleEditorType')
 	);
 

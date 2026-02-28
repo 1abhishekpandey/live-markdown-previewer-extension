@@ -1,7 +1,7 @@
 {
-  "name": "md-editor",
-  "displayName": "Markdown Editor",
-  "description": "Notion-like WYSIWYG markdown editor for VS Code",
+  "name": "live-markdown",
+  "displayName": "LiveMarkdown",
+  "description": "Live WYSIWYG markdown editor for VS Code",
   "version": "0.0.1",
   "engines": { "vscode": "^1.96.0" },
   "categories": ["Other"],
@@ -9,26 +9,26 @@
   "activationEvents": [],
   "contributes": {
     "customEditors": [{
-      "viewType": "mdEditor.markdownEditor",
-      "displayName": "Markdown Editor",
+      "viewType": "liveMarkdown.markdownEditor",
+      "displayName": "LiveMarkdown",
       "selector": [{ "filenamePattern": "*.md" }],
       "priority": "default"
     }],
     "commands": [{
-      "command": "mdEditor.toggleRawMarkdown",
+      "command": "liveMarkdown.toggleRawMarkdown",
       "title": "Toggle Raw Markdown",
       "icon": "$(code)",
-      "category": "Markdown Editor"
+      "category": "LiveMarkdown"
     }],
     "menus": {
       "editor/title": [{
-        "command": "mdEditor.toggleRawMarkdown",
+        "command": "liveMarkdown.toggleRawMarkdown",
         "when": "resourceExtname == '.md'",
         "group": "navigation"
       }]
     },
     "keybindings": [{
-      "command": "mdEditor.toggleRawMarkdown",
+      "command": "liveMarkdown.toggleRawMarkdown",
       "key": "shift+cmd+m",
       "mac": "shift+cmd+m",
       "win": "ctrl+shift+m",

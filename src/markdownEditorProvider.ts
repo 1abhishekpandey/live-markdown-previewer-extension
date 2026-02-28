@@ -44,7 +44,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
       syncManager.handleWebviewMessage(msg).catch((err) => {
-        console.error('[md-editor] Error handling webview message:', err);
+        console.error('[LiveMarkdown] Error handling webview message:', err);
       });
     });
 
@@ -94,7 +94,7 @@ function getWebviewContent(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspSource};">
   <link href="${styleUri}" rel="stylesheet">
-  <title>Markdown Editor</title>
+  <title>LiveMarkdown</title>
 </head>
 <body>
   <div id="loading-overlay"><div class="loading-spinner"></div></div>
