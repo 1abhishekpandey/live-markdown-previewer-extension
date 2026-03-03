@@ -1,12 +1,12 @@
 # LiveMarkdown
 
-A VS Code extension that replaces the default markdown preview with a live rich-text editor. Edit markdown files visually — headings, links, tables, task lists, and code blocks render inline as you type.
+A VS Code extension that replaces the default markdown preview with a live **WYSIWYG** editor. Edit markdown files visually — headings, links, tables, task lists, and code blocks render inline as you type.
 
 Built with [TipTap](https://tiptap.dev) and the VS Code `CustomTextEditorProvider` API.
 
 ## Features
 
-- **Visual editing** — rich-text editing for `.md` files, no split pane needed
+- **WYSIWYG editing** — rich-text editing for `.md` files, no split pane needed
 - **GFM support** — tables, task lists, strikethrough, and fenced code blocks with syntax highlighting
 - **Full theme integration** — adapts to light, dark, and high-contrast VS Code themes
 - **Native undo/redo** — backed by VS Code's `TextDocument` history, not a separate undo stack
