@@ -24,6 +24,16 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     _token: vscode.CancellationToken
   ): Promise<void> {
     const webview = webviewPanel.webview;
+
+    const writableSchemes = new Set(['file', 'untitled']);
+    const isNonFileScheme = !writableSchemes.has(document.uri.scheme);
+
+    if (isNonFileScheme || isInDiffContext(document.uri)) {
+      webview.options = { enableScripts: false };
+      webview.html = buildPlainTextHtml(document.getText());
+      return;
+    }
+
     // Configure webview
     webview.options = {
       enableScripts: true,
@@ -44,17 +54,13 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Set HTML content
     webview.html = getWebviewContent(webview, scriptUri, styleUri, nonce);
 
-    // Detect read-only documents (e.g. git base versions from Source Control)
-    const writableSchemes = new Set(['file', 'untitled']);
-    const isReadOnly = !writableSchemes.has(document.uri.scheme);
-
     // Register scroll state for this document
     const docKey = document.uri.toString();
     this.anchorStates.set(docKey, { lastAnchor: null, webview: webviewPanel.webview });
     this.activeDocUri = docKey;
 
     // Create sync manager
-    const syncManager = new DocumentSyncManager(document, webview, isReadOnly);
+    const syncManager = new DocumentSyncManager(document, webview, false);
 
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
@@ -77,14 +83,12 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       });
     });
 
-    // Wire up document change handling (skip for read-only — git blobs don't change mid-session)
-    const changeDisposable = isReadOnly
-      ? undefined
-      : vscode.workspace.onDidChangeTextDocument((e) => {
-          if (e.document.uri.toString() === document.uri.toString()) {
-            syncManager.handleDocumentChange(e.document);
-          }
-        });
+    // Wire up document change handling
+    const changeDisposable = vscode.workspace.onDidChangeTextDocument((e) => {
+      if (e.document.uri.toString() === document.uri.toString()) {
+        syncManager.handleDocumentChange(e.document);
+      }
+    });
 
     // Re-sync when panel becomes visible again
     const viewStateDisposable = webviewPanel.onDidChangeViewState(() => {
@@ -101,7 +105,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Cleanup on dispose
     webviewPanel.onDidDispose(() => {
       messageDisposable.dispose();
-      changeDisposable?.dispose();
+      changeDisposable.dispose();
       viewStateDisposable.dispose();
       this.anchorStates.delete(docKey);
       if (this.activeDocUri === docKey) this.activeDocUri = null;
@@ -159,4 +163,44 @@ function getWebviewContent(
 
 function getNonce(): string {
   return randomBytes(16).toString('hex');
+}
+
+export function isInDiffContext(uri: vscode.Uri): boolean {
+  return vscode.window.tabGroups.all
+    .flatMap(g => g.tabs)
+    .some(tab => {
+      const input = tab.input;
+      if (!(input instanceof vscode.TabInputTextDiff)) return false;
+      return (
+        input.original.toString() === uri.toString() ||
+        input.modified.toString() === uri.toString()
+      );
+    });
+}
+
+function buildPlainTextHtml(text: string): string {
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
+  <style>
+    body {
+      background: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: var(--vscode-editor-font-size, 13px);
+      line-height: var(--vscode-editor-line-height, 1.5);
+      margin: 0;
+      padding: 8px 16px;
+    }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
+  </style>
+</head>
+<body><pre>${escaped}</pre></body>
+</html>`;
 }

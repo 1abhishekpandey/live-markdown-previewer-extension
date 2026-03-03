@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MarkdownEditorProvider } from './markdownEditorProvider';
+import { MarkdownEditorProvider, isInDiffContext } from './markdownEditorProvider';
 
 export function stripMarkdownSyntax(line: string): string {
 	let text = line;
@@ -82,6 +82,10 @@ export function activate(context: vscode.ExtensionContext) {
 		{ webviewOptions: { retainContextWhenHidden: true } }
 	);
 
+	// Track files the user has explicitly toggled to raw (text) mode via Shift+Cmd+M.
+	// These are skipped by the auto-open listener so the user's choice is respected.
+	const rawModeUris = new Set<string>();
+
 	const toggleCmd = vscode.commands.registerCommand(
 		'liveMarkdown.toggleRawMarkdown',
 		async () => {
@@ -90,6 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			if (textEditor && previewDocUri) {
 				// Raw → Preview: extract anchor text from top visible line
+				rawModeUris.delete(previewDocUri);
 				const topLine = textEditor.visibleRanges[0]?.start.line ?? 0;
 				const totalLines = textEditor.document.lineCount;
 				let anchorText = '';
@@ -111,6 +116,7 @@ export function activate(context: vscode.ExtensionContext) {
 				// Preview → Raw: read the last known webview scroll anchor
 				const activeUri = provider.getActiveDocUri();
 				if (activeUri) {
+					rawModeUris.add(activeUri);
 					const anchor = provider.getLastWebviewScrollAnchor(activeUri);
 					if (anchor) {
 						provider.storePendingRawAnchor(anchor);
@@ -137,7 +143,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	context.subscriptions.push(disposable, toggleCmd);
+	// Auto-open .md files with the WYSIWYG editor when they are activated as a plain
+	// text editor and are not in a diff context and not explicitly set to raw mode.
+	// With priority "option", VS Code uses the text editor by default (which makes
+	// Source Control diffs work natively). This listener upgrades to WYSIWYG for
+	// normal editing.
+	const autoOpenDisposable = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+		if (!editor) return;
+		const { document } = editor;
+		if (!['file', 'untitled'].includes(document.uri.scheme)) return;
+		if (document.languageId !== 'markdown') return;
+		if (rawModeUris.has(document.uri.toString())) return;
+		if (isInDiffContext(document.uri)) return;
+		await vscode.commands.executeCommand('workbench.action.toggleEditorType');
+	});
+
+	context.subscriptions.push(disposable, toggleCmd, autoOpenDisposable);
 }
 
 export function deactivate() {}
