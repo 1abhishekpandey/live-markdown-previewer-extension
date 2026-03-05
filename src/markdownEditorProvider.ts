@@ -25,15 +25,6 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   ): Promise<void> {
     const webview = webviewPanel.webview;
 
-    const writableSchemes = new Set(['file', 'untitled']);
-    const isNonFileScheme = !writableSchemes.has(document.uri.scheme);
-
-    if (isNonFileScheme || isInDiffContext(document.uri)) {
-      webview.options = { enableScripts: false };
-      webview.html = buildPlainTextHtml(document.getText());
-      return;
-    }
-
     // Configure webview
     webview.options = {
       enableScripts: true,
@@ -165,42 +156,3 @@ function getNonce(): string {
   return randomBytes(16).toString('hex');
 }
 
-export function isInDiffContext(uri: vscode.Uri): boolean {
-  return vscode.window.tabGroups.all
-    .flatMap(g => g.tabs)
-    .some(tab => {
-      const input = tab.input;
-      if (!(input instanceof vscode.TabInputTextDiff)) return false;
-      return (
-        input.original.toString() === uri.toString() ||
-        input.modified.toString() === uri.toString()
-      );
-    });
-}
-
-function buildPlainTextHtml(text: string): string {
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline';">
-  <style>
-    body {
-      background: var(--vscode-editor-background);
-      color: var(--vscode-editor-foreground);
-      font-family: var(--vscode-editor-font-family, monospace);
-      font-size: var(--vscode-editor-font-size, 13px);
-      line-height: var(--vscode-editor-line-height, 1.5);
-      margin: 0;
-      padding: 8px 16px;
-    }
-    pre { white-space: pre-wrap; word-break: break-word; margin: 0; }
-  </style>
-</head>
-<body><pre>${escaped}</pre></body>
-</html>`;
-}

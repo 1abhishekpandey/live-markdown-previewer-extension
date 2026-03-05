@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MarkdownEditorProvider, isInDiffContext } from './markdownEditorProvider';
+import { MarkdownEditorProvider } from './markdownEditorProvider';
 
 export function stripMarkdownSyntax(line: string): string {
 	let text = line;
@@ -82,19 +82,90 @@ export function activate(context: vscode.ExtensionContext) {
 		{ webviewOptions: { retainContextWhenHidden: true } }
 	);
 
-	// Track files the user has explicitly toggled to raw (text) mode via Shift+Cmd+M.
-	// These are skipped by the auto-open listener so the user's choice is respected.
+	// URIs the user explicitly toggled to raw mode — skip auto-switch for these
 	const rawModeUris = new Set<string>();
+	let isAutoSwitching = false;
+
+	// Auto-open .md files with WYSIWYG unless in a diff or raw-mode toggle
+	const autoOpenDisposable = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+		if (isAutoSwitching || !editor) return;
+		const doc = editor.document;
+		if (doc.languageId !== 'markdown') return;
+		if (doc.uri.scheme !== 'file' && doc.uri.scheme !== 'untitled') return;
+
+		const uriStr = doc.uri.toString();
+		if (rawModeUris.has(uriStr)) return;
+
+		const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+		if (activeTab?.input instanceof vscode.TabInputTextDiff) return;
+
+		isAutoSwitching = true;
+		try {
+			const uri = doc.uri;
+			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+			await vscode.commands.executeCommand(
+				'vscode.openWith', uri, 'liveMarkdown.markdownEditor'
+			);
+		} finally {
+			isAutoSwitching = false;
+		}
+	});
+
+	// Clean up raw-mode tracking when tabs close
+	const tabCloseDisposable = vscode.window.tabGroups.onDidChangeTabs((e) => {
+		for (const tab of e.closed) {
+			if (tab.input instanceof vscode.TabInputText) {
+				rawModeUris.delete(tab.input.uri.toString());
+			}
+		}
+	});
 
 	const toggleCmd = vscode.commands.registerCommand(
 		'liveMarkdown.toggleRawMarkdown',
 		async () => {
-			const textEditor = vscode.window.activeTextEditor;
-			const previewDocUri = textEditor?.document.uri.toString();
+			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+			if (!activeTab) return;
 
-			if (textEditor && previewDocUri) {
-				// Raw → Preview: extract anchor text from top visible line
-				rawModeUris.delete(previewDocUri);
+			const input = activeTab.input;
+
+			if (input instanceof vscode.TabInputCustom
+				&& input.viewType === 'liveMarkdown.markdownEditor') {
+				// WYSIWYG → Raw
+				const uri = input.uri;
+				const docUri = uri.toString();
+
+				const anchor = provider.getLastWebviewScrollAnchor(docUri);
+				if (anchor) provider.storePendingRawAnchor(anchor);
+
+				rawModeUris.add(docUri);
+				isAutoSwitching = true;
+				try {
+					await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+					await vscode.commands.executeCommand('vscode.openWith', uri, 'default');
+				} finally {
+					isAutoSwitching = false;
+				}
+
+				const rawAnchor = provider.consumePendingRawAnchor();
+				if (rawAnchor) {
+					const editor = vscode.window.activeTextEditor;
+					if (editor) {
+						const targetLine = findAnchorLine(
+							editor.document,
+							rawAnchor.anchorText,
+							rawAnchor.roughFraction
+						);
+						const range = new vscode.Range(targetLine, 0, targetLine, 0);
+						editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+					}
+				}
+			} else if (input instanceof vscode.TabInputText) {
+				// Raw → WYSIWYG
+				const textEditor = vscode.window.activeTextEditor;
+				if (!textEditor) return;
+
+				const uri = textEditor.document.uri;
+				const docUri = uri.toString();
 				const topLine = textEditor.visibleRanges[0]?.start.line ?? 0;
 				const totalLines = textEditor.document.lineCount;
 				let anchorText = '';
@@ -106,59 +177,21 @@ export function activate(context: vscode.ExtensionContext) {
 					}
 				}
 				if (anchorText) {
-					provider.setPendingPreviewAnchor(previewDocUri, {
-						anchorText,
-						lineIndex: topLine,
-						totalLines,
+					provider.setPendingPreviewAnchor(docUri, {
+						anchorText, lineIndex: topLine, totalLines,
 					});
 				}
-			} else {
-				// Preview → Raw: read the last known webview scroll anchor
-				const activeUri = provider.getActiveDocUri();
-				if (activeUri) {
-					rawModeUris.add(activeUri);
-					const anchor = provider.getLastWebviewScrollAnchor(activeUri);
-					if (anchor) {
-						provider.storePendingRawAnchor(anchor);
-					}
-				}
-			}
 
-			await vscode.commands.executeCommand('workbench.action.toggleEditorType');
-
-			// Preview → Raw: reveal the target line in the newly opened text editor
-			const rawAnchor = provider.consumePendingRawAnchor();
-			if (rawAnchor) {
-				const editor = vscode.window.activeTextEditor;
-				if (editor) {
-					const targetLine = findAnchorLine(
-						editor.document,
-						rawAnchor.anchorText,
-						rawAnchor.roughFraction
-					);
-					const range = new vscode.Range(targetLine, 0, targetLine, 0);
-					editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
-				}
+				rawModeUris.delete(docUri);
+				await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+				await vscode.commands.executeCommand(
+					'vscode.openWith', uri, 'liveMarkdown.markdownEditor'
+				);
 			}
 		}
 	);
 
-	// Auto-open .md files with the WYSIWYG editor when they are activated as a plain
-	// text editor and are not in a diff context and not explicitly set to raw mode.
-	// With priority "option", VS Code uses the text editor by default (which makes
-	// Source Control diffs work natively). This listener upgrades to WYSIWYG for
-	// normal editing.
-	const autoOpenDisposable = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
-		if (!editor) return;
-		const { document } = editor;
-		if (!['file', 'untitled'].includes(document.uri.scheme)) return;
-		if (document.languageId !== 'markdown') return;
-		if (rawModeUris.has(document.uri.toString())) return;
-		if (isInDiffContext(document.uri)) return;
-		await vscode.commands.executeCommand('workbench.action.toggleEditorType');
-	});
-
-	context.subscriptions.push(disposable, toggleCmd, autoOpenDisposable);
+	context.subscriptions.push(disposable, autoOpenDisposable, tabCloseDisposable, toggleCmd);
 }
 
 export function deactivate() {}
