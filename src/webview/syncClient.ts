@@ -48,6 +48,15 @@ export class SyncClient {
       }
     });
 
+    document.addEventListener('click', (e) => {
+      const anchor = (e.target as HTMLElement).closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute('href') ?? '';
+      if (!href || href.startsWith('#') || /^[a-z][a-z\d+\-.]*:/i.test(href)) return;
+      e.preventDefault();
+      this.vscode.postMessage({ type: 'openFile', src: href });
+    });
+
     this.vscode.postMessage({ type: 'ready' });
 
     this.scrollTimer = null;
