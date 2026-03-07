@@ -58,7 +58,7 @@
     "build": "node esbuild.js",
     "watch": "node esbuild.js --watch",
     "package": "node esbuild.js --production",
-    "vscode:install": "npm run package && npx @vscode/vsce package --allow-missing-repository --no-rewrite-relative-links && \"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --install-extension live-markdown-0.0.1.vsix",
+    "vscode:install": "npm run package && npx @vscode/vsce package --allow-missing-repository --no-rewrite-relative-links && rm -rf ~/.vscode/extensions/1abhishekpandey.live-markdown-0.0.1 && mkdir -p ~/.vscode/extensions/1abhishekpandey.live-markdown-0.0.1 && unzip -o live-markdown-0.0.1.vsix -d /tmp/live-markdown-vsix && cp -r /tmp/live-markdown-vsix/extension/. ~/.vscode/extensions/1abhishekpandey.live-markdown-0.0.1/ && rm -rf /tmp/live-markdown-vsix && echo 'Installed — reload VS Code: Cmd+Shift+P → Developer: Reload Window'",
     "check-types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
