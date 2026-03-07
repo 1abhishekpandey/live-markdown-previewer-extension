@@ -26,9 +26,14 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const webview = webviewPanel.webview;
 
     // Configure webview
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const resourceRoot = workspaceFolder?.uri ?? vscode.Uri.joinPath(document.uri, '..');
     webview.options = {
       enableScripts: true,
-      localResourceRoots: [vscode.Uri.joinPath(this.context.extensionUri, 'dist')],
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.context.extensionUri, 'dist'),
+        resourceRoot,
+      ],
     };
 
     // Get URIs for webview assets
@@ -51,7 +56,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     this.activeDocUri = docKey;
 
     // Create sync manager
-    const syncManager = new DocumentSyncManager(document, webview, false);
+    const documentDir = vscode.Uri.joinPath(document.uri, '..');
+    const documentDirUri = webview.asWebviewUri(documentDir).toString();
+    const syncManager = new DocumentSyncManager(document, webview, false, documentDirUri);
 
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
@@ -140,7 +147,7 @@ function getWebviewContent(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspSource};">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspSource}; img-src ${cspSource};">
   <link href="${styleUri}" rel="stylesheet">
   <title>LiveMarkdown</title>
 </head>

@@ -38,6 +38,16 @@ export class SyncClient {
 
     this.setupKeyboardShortcuts();
 
+    document.addEventListener('dblclick', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG') {
+        const src = target.getAttribute('data-src');
+        if (src) {
+          this.vscode.postMessage({ type: 'openFile', src });
+        }
+      }
+    });
+
     this.vscode.postMessage({ type: 'ready' });
 
     this.scrollTimer = null;
@@ -79,6 +89,9 @@ export class SyncClient {
   handleMessage(msg: ExtensionToWebviewMessage): void {
     switch (msg.type) {
       case 'init':
+        if (msg.documentDirUri) {
+          this.editor.storage.localImage.documentDirUri = msg.documentDirUri;
+        }
         this.editor.commands.setContent(msg.markdown);
         this.setAdaptiveDebounce(msg.markdown.length);
         if (msg.isReadOnly) {
@@ -217,6 +230,9 @@ export class SyncClient {
 
     const { from, to } = this.editor.state.selection;
 
+    if (msg.documentDirUri) {
+      this.editor.storage.localImage.documentDirUri = msg.documentDirUri;
+    }
     this.editor.commands.setContent(msg.markdown);
 
     this.editor.commands.setTextSelection({

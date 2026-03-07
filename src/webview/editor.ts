@@ -1,4 +1,5 @@
-import { Editor } from '@tiptap/core';
+import { Editor, mergeAttributes } from '@tiptap/core';
+import Image from '@tiptap/extension-image';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Table from '@tiptap/extension-table';
@@ -30,6 +31,23 @@ function isAllowedLinkUri(
   // Allow any URL that isn't a dangerous protocol.
   return true;
 }
+
+function resolveImageSrc(src: string, documentDirUri: string): string {
+  if (!src || !documentDirUri) return src;
+  if (/^(https?:|data:|vscode-webview:)/.test(src)) return src;
+  const base = documentDirUri.endsWith('/') ? documentDirUri : documentDirUri + '/';
+  return new URL(src, base).href;
+}
+
+const LocalImage = Image.extend({
+  name: 'localImage',
+  addStorage() { return { documentDirUri: '' }; },
+  renderHTML({ node, HTMLAttributes }) {
+    const originalSrc = node.attrs.src ?? '';
+    const resolved = resolveImageSrc(originalSrc, this.storage.documentDirUri);
+    return ['img', mergeAttributes(HTMLAttributes, { src: resolved, 'data-src': originalSrc })];
+  },
+});
 
 const CustomCodeBlock = CodeBlockLowlight.configure({ lowlight }).extend({
   addStorage() {
@@ -86,6 +104,7 @@ export function createEditor(element: HTMLElement): Editor {
       SearchBarExtension,
       GfmAlertExtension,
       CopyToolbarExtension,
+      LocalImage,
     ],
     editorProps: {
       attributes: {

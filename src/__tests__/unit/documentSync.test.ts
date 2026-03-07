@@ -35,7 +35,7 @@ describe('handleWebviewMessage', () => {
     const mgr = new DocumentSyncManager(doc as any, webview as any);
     await mgr.handleWebviewMessage({ type: 'ready' });
     expect(webview.postMessage).toHaveBeenCalledWith({
-      type: 'init', markdown: '# Hello', isReadOnly: false,
+      type: 'init', markdown: '# Hello', isReadOnly: false, documentDirUri: '',
     });
   });
 
@@ -147,6 +147,7 @@ describe('handleDocumentChange', () => {
       type: 'externalUpdate',
       markdown: '# World',
       version: 1,
+      documentDirUri: '',
     });
   });
 

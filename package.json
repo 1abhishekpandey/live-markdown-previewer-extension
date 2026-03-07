@@ -1,4 +1,5 @@
 {
+  "publisher": "1AbhishekPandey",
   "name": "live-markdown",
   "displayName": "LiveMarkdown",
   "description": "Live WYSIWYG markdown editor for VS Code",
@@ -75,6 +76,7 @@
   "dependencies": {
     "@tiptap/core": "^2.11.0",
     "@tiptap/extension-code-block-lowlight": "^2.11.0",
+    "@tiptap/extension-image": "^2.27.2",
     "@tiptap/extension-link": "^2.11.0",
     "@tiptap/extension-table": "^2.11.0",
     "@tiptap/extension-table-cell": "^2.11.0",

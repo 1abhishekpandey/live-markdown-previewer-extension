@@ -8,17 +8,19 @@ export class DocumentSyncManager {
   private document: vscode.TextDocument;
   private webview: vscode.Webview;
   private readonly isReadOnly: boolean;
+  private readonly documentDirUri: string;
 
-  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false) {
+  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false, documentDirUri: string = '') {
     this.document = document;
     this.webview = webview;
     this.isReadOnly = isReadOnly;
+    this.documentDirUri = documentDirUri;
   }
 
   async handleWebviewMessage(msg: WebviewToExtensionMessage): Promise<void> {
     switch (msg.type) {
       case 'ready':
-        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly });
+        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly, documentDirUri: this.documentDirUri });
         break;
 
       case 'edit':
@@ -43,6 +45,13 @@ export class DocumentSyncManager {
         await this.applyMarkdownEdit(msg.markdown);
         await this.document.save();
         break;
+
+      case 'openFile': {
+        const docDir = vscode.Uri.joinPath(this.document.uri, '..');
+        const fileUri = vscode.Uri.joinPath(docDir, msg.src);
+        vscode.commands.executeCommand('vscode.open', fileUri);
+        break;
+      }
     }
   }
 
@@ -66,6 +75,7 @@ export class DocumentSyncManager {
       type: 'externalUpdate',
       markdown: content,
       version: this.currentVersion,
+      documentDirUri: this.documentDirUri,
     });
   }
 

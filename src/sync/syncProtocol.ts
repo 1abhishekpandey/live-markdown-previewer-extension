@@ -4,12 +4,14 @@ export interface InitMessage {
   type: 'init';
   markdown: string;
   isReadOnly?: boolean;
+  documentDirUri?: string;
 }
 
 export interface ExternalUpdateMessage {
   type: 'externalUpdate';
   markdown: string;
   version: number;
+  documentDirUri?: string;
 }
 
 export interface ScrollToAnchorMessage {
@@ -52,10 +54,16 @@ export interface ScrollAnchorUpdateMessage {
   roughFraction: number;
 }
 
+export interface OpenFileMessage {
+  type: 'openFile';
+  src: string;
+}
+
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditMessage
   | UndoMessage
   | RedoMessage
   | SaveMessage
-  | ScrollAnchorUpdateMessage;
+  | ScrollAnchorUpdateMessage
+  | OpenFileMessage;
