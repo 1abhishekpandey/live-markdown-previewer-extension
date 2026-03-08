@@ -1,8 +1,7 @@
 # LiveMarkdown
 
 [![VS Marketplace](https://img.shields.io/visual-studio-marketplace/v/1AbhishekPandey.live-markdown?label=VS%20Marketplace&color=blue)](https://marketplace.visualstudio.com/items?itemName=1AbhishekPandey.live-markdown)
-[![Installs](https://img.shields.io/visual-studio-marketplace/i/1AbhishekPandey.live-markdown?color=green)](https://marketplace.visualstudio.com/items?itemName=1AbhishekPandey.live-markdown)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A VS Code extension that replaces the default markdown preview with a live **WYSIWYG** editor. Edit markdown files visually — headings, links, tables, task lists, and code blocks render inline as you type.
 
@@ -36,6 +35,7 @@ For more details, see:
 - [Why LiveMarkdown?](https://github.com/1abhishekpandey/live-markdown-previewer-extension/blob/main/docs/motivation.md) — the problem with VS Code's built-in preview and how this solves it
 - [Features](https://github.com/1abhishekpandey/live-markdown-previewer-extension/blob/main/docs/features.md) — quick feature overview
 - [Detailed feature guide](https://github.com/1abhishekpandey/live-markdown-previewer-extension/blob/main/docs/features-detailed.md) — in-depth behaviour, shortcuts, edge cases, and design rationale
+- [Known issues](https://github.com/1abhishekpandey/live-markdown-previewer-extension/blob/main/docs/known-issues.md) — current limitations and workarounds
 
 ## Licence
 
