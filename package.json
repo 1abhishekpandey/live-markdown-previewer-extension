@@ -11,6 +11,10 @@
   "categories": [
     "Other"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/1abhishekpandey/live-markdown-previewer-extension.git"
+  },
   "main": "./dist/extension.js",
   "activationEvents": [],
   "contributes": {
