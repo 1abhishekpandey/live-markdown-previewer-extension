@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import { DocumentSyncManager } from './sync/documentSync';
+import { findAnchorLine } from './extension';
 
 interface PanelAnchorState {
   lastAnchor: { anchorText: string; roughFraction: number } | null;
@@ -65,6 +66,9 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       if (msg.type === 'scrollAnchorUpdate') {
         const state = this.anchorStates.get(docKey);
         if (state) state.lastAnchor = { anchorText: msg.anchorText, roughFraction: msg.roughFraction };
+        const line = findAnchorLine(document, msg.anchorText, msg.roughFraction);
+        const lineText = document.lineAt(line).text;
+        webview.postMessage({ type: 'debugLineInfo', lineNum: line + 1, lineText });
         return;
       }
       syncManager.handleWebviewMessage(msg).then(() => {

@@ -31,6 +31,10 @@ const syncClient = new SyncClient(editor, vscode, () => {
 window.addEventListener('message', (event: MessageEvent) => {
   const data = event.data;
   if (typeof data !== 'object' || data === null || typeof data.type !== 'string') return;
+  if (data.type === 'debugLineInfo') {
+    syncClient.updateDebugOverlay(data.lineNum, data.lineText);
+    return;
+  }
   syncClient.handleMessage(data as ExtensionToWebviewMessage);
 });
 

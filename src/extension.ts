@@ -53,12 +53,10 @@ export function findAnchorLine(
 		}
 	}
 	if (candidates.length === 0) {
-		const totalChars = document.getText().length;
-		const charOffset = Math.min(
-			Math.floor(roughFraction * totalChars),
-			Math.max(0, totalChars - 1)
+		return Math.min(
+			Math.max(0, Math.floor(roughFraction * totalLines)),
+			Math.max(0, totalLines - 1)
 		);
-		return document.positionAt(charOffset).line;
 	}
 	if (candidates.length === 1) return candidates[0];
 	let best = candidates[0];
@@ -81,6 +79,29 @@ export function activate(context: vscode.ExtensionContext) {
 		provider,
 		{ webviewOptions: { retainContextWhenHidden: true } }
 	);
+
+	// Debug: status bar showing top visible line in raw mode
+	const debugStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 1000);
+	debugStatus.name = 'Scroll Debug';
+	debugStatus.show();
+	const updateDebugStatus = (editor: vscode.TextEditor) => {
+		if (editor.document.languageId === 'markdown') {
+			const topLine = editor.visibleRanges[0]?.start.line ?? 0;
+			const totalLines = editor.document.lineCount;
+			const lineText = editor.document.lineAt(topLine).text;
+			const truncated = lineText.length > 40 ? lineText.substring(0, 40) + '…' : lineText;
+			debugStatus.text = `$(debug) L${topLine + 1} ${truncated}`;
+		} else {
+			debugStatus.text = '';
+		}
+	};
+	const scrollDebugDisposable = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+		updateDebugStatus(e.textEditor);
+	});
+	const editorDebugDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
+		if (editor) updateDebugStatus(editor);
+		else debugStatus.text = '';
+	});
 
 	// URIs the user explicitly toggled to raw mode — skip auto-switch for these
 	const rawModeUris = new Set<string>();
@@ -191,7 +212,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	context.subscriptions.push(disposable, autoOpenDisposable, tabCloseDisposable, toggleCmd);
+	context.subscriptions.push(disposable, autoOpenDisposable, tabCloseDisposable, toggleCmd, debugStatus, scrollDebugDisposable, editorDebugDisposable);
 }
 
 export function deactivate() {}

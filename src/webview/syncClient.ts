@@ -64,32 +64,68 @@ export class SyncClient {
     window.addEventListener('scroll', () => {
       if (this.scrollTimer !== null) clearTimeout(this.scrollTimer);
       this.scrollTimer = setTimeout(() => {
-        const totalSize = this.editor.state.doc.content.size;
-        const topPos = this.editor.view.posAtCoords({ left: 0, top: 0 });
         let anchorText = '';
-        let roughFraction = 0;
-        if (topPos && totalSize > 0) {
-          const resolvedPos = this.editor.state.doc.resolve(topPos.pos);
-          const depth = resolvedPos.depth;
-          let blockNode;
-          if (depth > 1) {
-            blockNode = resolvedPos.node(1);
-          } else {
-            blockNode = resolvedPos.node(depth);
+        const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+        const roughFraction = scrollable > 0 ? window.scrollY / scrollable : 0;
+
+        // Find the block element closest to the top of the viewport
+        const editorEl = this.editor.view.dom;
+        const allBlocks = editorEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, th, td');
+        let bestEl: Element | null = null;
+        let bestTop = Infinity;
+        for (const el of Array.from(allBlocks)) {
+          // For LI with nested lists, use its direct P child's rect for positioning
+          let measureEl: Element = el;
+          if (el.tagName === 'LI' && el.querySelector(':scope > ul, :scope > ol')) {
+            const directP = el.querySelector(':scope > p');
+            if (directP) {
+              measureEl = directP;
+            } else {
+              // No direct P — skip this parent LI, its children (leaf LIs) will match
+              continue;
+            }
           }
-          anchorText = blockNode.textContent.trim();
-          roughFraction = topPos.pos / totalSize;
-        } else {
-          const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-          roughFraction = scrollable > 0 ? window.scrollY / scrollable : 0;
+          // Skip P inside LI — the LI handles its own text extraction
+          if (el.tagName === 'P' && el.parentElement?.tagName === 'LI') continue;
+          const rect = measureEl.getBoundingClientRect();
+          if (rect.bottom <= 0) continue;
+          if (rect.top >= window.innerHeight) break;
+          const dist = Math.abs(rect.top);
+          if (dist < bestTop) {
+            bestTop = dist;
+            bestEl = el;
+          }
         }
-        if (anchorText) {
-          this.vscode.postMessage({
-            type: 'scrollAnchorUpdate',
-            anchorText,
-            roughFraction: Math.max(0, Math.min(1, roughFraction)),
-          });
+        if (bestEl) {
+          // Extract direct text only (excluding nested UL/OL children)
+          const extractDirectText = (el: Element): string => {
+            const directP = el.querySelector(':scope > p');
+            if (directP) return directP.textContent?.trim() ?? '';
+            let text = '';
+            for (const child of Array.from(el.childNodes)) {
+              if (child.nodeType === Node.TEXT_NODE) {
+                text += child.textContent;
+              } else if (child.nodeType === Node.ELEMENT_NODE) {
+                const tag = (child as Element).tagName;
+                if (!['UL', 'OL'].includes(tag)) {
+                  text += (child as Element).textContent;
+                }
+              }
+            }
+            return text.trim();
+          };
+          if (bestEl.tagName === 'LI') {
+            anchorText = extractDirectText(bestEl);
+          } else {
+            anchorText = bestEl.textContent?.trim() ?? '';
+          }
         }
+        this.vscode.postMessage({
+          type: 'scrollAnchorUpdate',
+          anchorText,
+          roughFraction: Math.max(0, Math.min(1, roughFraction)),
+        });
+        // Line number is computed by the extension via debugLineInfo message
         this.scrollTimer = null;
       }, 150);
     }, { passive: true });
@@ -173,7 +209,9 @@ export class SyncClient {
     let targetPos: number;
     if (candidates.length === 0) {
       const roughFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
-      targetPos = Math.min(Math.floor(roughFraction * totalSize), Math.max(0, totalSize - 1));
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      window.scrollTo({ top: roughFraction * Math.max(0, scrollable), behavior: 'instant' as ScrollBehavior });
+      return;
     } else if (candidates.length === 1) {
       targetPos = candidates[0].pos;
     } else {
@@ -288,6 +326,18 @@ export class SyncClient {
     };
 
     document.addEventListener('keydown', this.keydownHandler);
+  }
+
+  updateDebugOverlay(lineNum: number, lineText: string): void {
+    let overlay = document.getElementById('scroll-debug-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'scroll-debug-overlay';
+      overlay.style.cssText = 'position:fixed;top:4px;right:4px;background:rgba(0,0,0,0.85);color:#0f0;font:13px/1.3 monospace;padding:6px 10px;border-radius:4px;z-index:99999;max-width:400px;pointer-events:none;';
+      document.body.appendChild(overlay);
+    }
+    const truncated = lineText.length > 50 ? lineText.substring(0, 50) + '…' : lineText;
+    overlay.textContent = `L${lineNum} ${truncated}`;
   }
 
   private insertReadOnlyBanner(): void {
