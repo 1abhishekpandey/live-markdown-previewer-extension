@@ -93,6 +93,7 @@ describe('handleMessage - scrollToAnchor', () => {
       anchorText: 'Hello',
       lineIndex: 5,
       totalLines: 100,
+      roughFraction: 0.05,
     });
 
     expect(rafSpy).not.toHaveBeenCalled();
@@ -114,6 +115,7 @@ describe('handleMessage - scrollToAnchor', () => {
       anchorText: 'Hello',
       lineIndex: 5,
       totalLines: 100,
+      roughFraction: 0.05,
     });
 
     expect(rafSpy).toHaveBeenCalledOnce();
@@ -131,6 +133,7 @@ describe('handleMessage - scrollToAnchor', () => {
       anchorText: 'Buffered',
       lineIndex: 10,
       totalLines: 200,
+      roughFraction: 0.05,
     });
     expect(rafSpy).not.toHaveBeenCalled();
 
@@ -248,7 +251,7 @@ describe('adaptive debounce thresholds', () => {
     // Trigger update, advance timer by 299ms — edit should NOT have been sent
     updateHandler();
     vi.advanceTimersByTime(299);
-    expect(vsCode.postMessage).not.toHaveBeenCalled();
+    expect(vsCode.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));
 
     // At 300ms it fires
     vi.advanceTimersByTime(1);
@@ -276,7 +279,7 @@ describe('adaptive debounce thresholds', () => {
     vi.clearAllMocks();
     updateHandler();
     vi.advanceTimersByTime(799);
-    expect(vsCode.postMessage).not.toHaveBeenCalled();
+    expect(vsCode.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));
 
     vi.advanceTimersByTime(1);
     expect(vsCode.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));

@@ -171,13 +171,49 @@ export function activate(context: vscode.ExtensionContext) {
 				if (rawAnchor) {
 					const editor = vscode.window.activeTextEditor;
 					if (editor) {
-						const targetLine = findAnchorLine(
-							editor.document,
-							rawAnchor.anchorText,
-							rawAnchor.roughFraction
-						);
-						const range = new vscode.Range(targetLine, 0, targetLine, 0);
-						editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+						const totalLines = editor.document.lineCount;
+						const targetLine = rawAnchor.anchorText
+							? findAnchorLine(editor.document, rawAnchor.anchorText, rawAnchor.roughFraction)
+							: Math.min(
+								Math.round(rawAnchor.roughFraction * Math.max(1, totalLines - 1)),
+								Math.max(0, totalLines - 1)
+							);
+						// Reveal the target line, then compensate for sticky scroll headers.
+						// revealRange(line, AtTop) puts the line below sticky headers,
+						// but visibleRanges[0].start.line reports the viewport top (above sticky).
+						// This asymmetry causes drift, so we overshoot by the measured offset.
+						const revealWithCompensation = () => {
+							const range = new vscode.Range(targetLine, 0, targetLine, 0);
+							editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+							setTimeout(() => {
+								const actual = editor.visibleRanges[0]?.start.line;
+								if (actual !== undefined && actual < targetLine) {
+									const adjusted = Math.min(
+										targetLine + (targetLine - actual),
+										Math.max(0, totalLines - 1)
+									);
+									editor.revealRange(
+										new vscode.Range(adjusted, 0, adjusted, 0),
+										vscode.TextEditorRevealType.AtTop
+									);
+								}
+							}, 30);
+						};
+						let settleTimer: ReturnType<typeof setTimeout>;
+						const disposable = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+							if (e.textEditor === editor) {
+								clearTimeout(settleTimer);
+								settleTimer = setTimeout(() => {
+									disposable.dispose();
+									revealWithCompensation();
+								}, 100);
+							}
+						});
+						settleTimer = setTimeout(() => {
+							disposable.dispose();
+							revealWithCompensation();
+						}, 300);
+						revealWithCompensation();
 					}
 				}
 			} else if (input instanceof vscode.TabInputText) {
@@ -189,19 +225,12 @@ export function activate(context: vscode.ExtensionContext) {
 				const docUri = uri.toString();
 				const topLine = textEditor.visibleRanges[0]?.start.line ?? 0;
 				const totalLines = textEditor.document.lineCount;
-				let anchorText = '';
-				for (let i = topLine; i < Math.min(topLine + 10, totalLines); i++) {
-					const stripped = stripMarkdownSyntax(textEditor.document.lineAt(i).text);
-					if (stripped.length > 0) {
-						anchorText = stripped;
-						break;
-					}
-				}
-				if (anchorText) {
-					provider.setPendingPreviewAnchor(docUri, {
-						anchorText, lineIndex: topLine, totalLines,
-					});
-				}
+				const roughFraction = totalLines > 1 ? topLine / (totalLines - 1) : 0;
+				const topLineText = stripMarkdownSyntax(textEditor.document.lineAt(topLine).text);
+				provider.setPendingPreviewAnchor(docUri, {
+					anchorText: topLineText, lineIndex: topLine, totalLines,
+					roughFraction,
+				});
 
 				rawModeUris.delete(docUri);
 				await vscode.commands.executeCommand('workbench.action.closeActiveEditor');

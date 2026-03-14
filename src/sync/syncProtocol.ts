@@ -19,6 +19,7 @@ export interface ScrollToAnchorMessage {
   anchorText: string;
   lineIndex: number;
   totalLines: number;
+  roughFraction?: number;
 }
 
 export type ExtensionToWebviewMessage = InitMessage | ExternalUpdateMessage | ScrollToAnchorMessage;
