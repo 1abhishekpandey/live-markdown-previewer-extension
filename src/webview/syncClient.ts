@@ -72,7 +72,6 @@ export class SyncClient {
         const editorEl = this.editor.view.dom;
         const allBlocks = editorEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, th, td');
         let bestEl: Element | null = null;
-        let bestTop = Infinity;
         for (const el of Array.from(allBlocks)) {
           // For LI with nested lists, use its direct P child's rect for positioning
           let measureEl: Element = el;
@@ -81,20 +80,17 @@ export class SyncClient {
             if (directP) {
               measureEl = directP;
             } else {
-              // No direct P — skip this parent LI, its children (leaf LIs) will match
               continue;
             }
           }
           // Skip P inside LI — the LI handles its own text extraction
           if (el.tagName === 'P' && el.parentElement?.tagName === 'LI') continue;
           const rect = measureEl.getBoundingClientRect();
-          if (rect.bottom <= 0) continue;
-          if (rect.top >= window.innerHeight) break;
-          const dist = Math.abs(rect.top);
-          if (dist < bestTop) {
-            bestTop = dist;
-            bestEl = el;
-          }
+          if (rect.bottom <= 0) continue; // entirely scrolled past
+          if (rect.top >= window.innerHeight) break; // below viewport
+          // First element with visible bottom = topmost visible element (DOM order = visual order)
+          bestEl = el;
+          break;
         }
         if (bestEl) {
           // Extract direct text only (excluding nested UL/OL children)
@@ -116,6 +112,29 @@ export class SyncClient {
           };
           if (bestEl.tagName === 'LI') {
             anchorText = extractDirectText(bestEl);
+          } else if (bestEl.tagName === 'PRE') {
+            // For code blocks, get the first non-empty line of code
+            const codeEl = bestEl.querySelector('code');
+            const codeText = (codeEl ?? bestEl).textContent ?? '';
+            const codeLines = codeText.split('\n');
+            // Find which line is near the top of the viewport
+            const preRect = bestEl.getBoundingClientRect();
+            if (preRect.top >= 0) {
+              // Top of code block is visible — use first non-empty line
+              anchorText = codeLines.find(l => l.trim().length > 0)?.trim() ?? '';
+            } else {
+              // Scrolled partway into the code block — estimate which line
+              const lineHeight = preRect.height / Math.max(codeLines.length, 1);
+              const linesScrolled = Math.floor(Math.abs(preRect.top) / lineHeight);
+              const idx = Math.min(linesScrolled, codeLines.length - 1);
+              // Find the nearest non-empty line from the estimated position
+              for (let i = idx; i < codeLines.length; i++) {
+                if (codeLines[i].trim().length > 0) {
+                  anchorText = codeLines[i].trim();
+                  break;
+                }
+              }
+            }
           } else {
             anchorText = bestEl.textContent?.trim() ?? '';
           }
