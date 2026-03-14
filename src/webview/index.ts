@@ -32,7 +32,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   const data = event.data;
   if (typeof data !== 'object' || data === null || typeof data.type !== 'string') return;
   if (data.type === 'debugLineInfo') {
-    // Debug overlay hidden — logic retained in syncClient.updateDebugOverlay
+    syncClient.updateDebugOverlay(data.lineNum, data.lineText);
     return;
   }
   syncClient.handleMessage(data as ExtensionToWebviewMessage);

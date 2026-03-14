@@ -83,6 +83,7 @@ export function activate(context: vscode.ExtensionContext) {
 	// Debug: status bar showing top visible line in raw mode
 	const debugStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 1000);
 	debugStatus.name = 'Scroll Debug';
+	debugStatus.show();
 	const updateDebugStatus = (editor: vscode.TextEditor) => {
 		if (editor.document.languageId === 'markdown') {
 			const topLine = editor.visibleRanges[0]?.start.line ?? 0;
