@@ -13,13 +13,15 @@ export class SyncClient {
   private isExternalUpdate: boolean = false;
   private currentVersion: number = 0;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  private scrollTimer: ReturnType<typeof setTimeout> | null = null;
+  // scrollTimer removed — rAF throttle replaces debounce for anchor updates
   private pendingExternalUpdate: ExtensionToWebviewMessage | null = null;
   // True once the first 'init' message has been handled and content is in the DOM.
   private isInitialized: boolean = false;
   // Buffered scroll anchor for when 'scrollToAnchor' arrives before 'init'.
-  private pendingScrollAnchor: { anchorText: string; lineIndex: number; totalLines: number } | null = null;
+  private pendingScrollAnchor: { anchorText: string; lineIndex: number; totalLines: number; roughFraction?: number } | null = null;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private scrollHandler: (() => void) | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private debounceDelayInMs: number = 300;
   private onFirstInit: (() => void) | undefined;
   private isReadOnly: boolean = false;
@@ -59,40 +61,109 @@ export class SyncClient {
 
     this.vscode.postMessage({ type: 'ready' });
 
-    this.scrollTimer = null;
+    // Use rAF throttle instead of debounce — ensures cached anchor is always
+    // within ~16ms of the current scroll position (critical for toggle sync)
+    let scrollRAFPending = false;
+    this.scrollHandler = () => {
+      if (!scrollRAFPending) {
+        scrollRAFPending = true;
+        requestAnimationFrame(() => {
+          if (!this.isInitialized) { scrollRAFPending = false; return; }
+          this.computeAndSendAnchor();
+          scrollRAFPending = false;
+        });
+      }
+    };
+    window.addEventListener('scroll', this.scrollHandler, { passive: true });
+  }
 
-    window.addEventListener('scroll', () => {
-      if (this.scrollTimer !== null) clearTimeout(this.scrollTimer);
-      this.scrollTimer = setTimeout(() => {
-        const totalSize = this.editor.state.doc.content.size;
-        const topPos = this.editor.view.posAtCoords({ left: 0, top: 0 });
-        let anchorText = '';
-        let roughFraction = 0;
-        if (topPos && totalSize > 0) {
-          const resolvedPos = this.editor.state.doc.resolve(topPos.pos);
-          const depth = resolvedPos.depth;
-          let blockNode;
-          if (depth > 1) {
-            blockNode = resolvedPos.node(1);
-          } else {
-            blockNode = resolvedPos.node(depth);
-          }
-          anchorText = blockNode.textContent.trim();
-          roughFraction = topPos.pos / totalSize;
+  private computeAndSendAnchor(): void {
+    let anchorText = '';
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+    const roughFraction = scrollable > 0 ? window.scrollY / scrollable : 0;
+
+    // Find the first visible block element (DOM order = visual order)
+    const editorEl = this.editor.view && this.editor.view.dom;
+    if (!editorEl) {
+      this.vscode.postMessage({
+        type: 'scrollAnchorUpdate',
+        anchorText: '',
+        roughFraction: Math.max(0, Math.min(1, roughFraction)),
+      });
+      return;
+    }
+    const allBlocks = editorEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, th, td');
+    let bestEl: Element | null = null;
+    for (const el of Array.from(allBlocks)) {
+      let measureEl: Element = el;
+      if (el.tagName === 'LI' && el.querySelector(':scope > ul, :scope > ol')) {
+        const directP = el.querySelector(':scope > p');
+        if (directP) {
+          measureEl = directP;
         } else {
-          const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-          roughFraction = scrollable > 0 ? window.scrollY / scrollable : 0;
+          continue;
         }
-        if (anchorText) {
-          this.vscode.postMessage({
-            type: 'scrollAnchorUpdate',
-            anchorText,
-            roughFraction: Math.max(0, Math.min(1, roughFraction)),
-          });
+      }
+      if (el.tagName === 'P' && el.parentElement?.tagName === 'LI') continue;
+      const rect = measureEl.getBoundingClientRect();
+      if (rect.bottom <= 5) continue; // skip elements with <5px visible (prevents drift)
+      if (rect.top >= window.innerHeight) break;
+      bestEl = el;
+      break;
+    }
+    if (bestEl) {
+      anchorText = this.extractElementText(bestEl);
+    }
+    this.vscode.postMessage({
+      type: 'scrollAnchorUpdate',
+      anchorText,
+      roughFraction: Math.max(0, Math.min(1, roughFraction)),
+    });
+  }
+
+  private extractElementText(el: Element): string {
+    if (el.tagName === 'TH' || el.tagName === 'TD') {
+      const tr = el.closest('tr');
+      if (tr) {
+        const cells = tr.querySelectorAll('th, td');
+        return Array.from(cells).map(c => c.textContent?.trim() ?? '').join('  ').trim();
+      }
+    }
+    if (el.tagName === 'LI') {
+      const directP = el.querySelector(':scope > p');
+      if (directP) return directP.textContent?.trim() ?? '';
+      let text = '';
+      for (const child of Array.from(el.childNodes)) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          text += child.textContent;
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = (child as Element).tagName;
+          if (!['UL', 'OL'].includes(tag)) {
+            text += (child as Element).textContent;
+          }
         }
-        this.scrollTimer = null;
-      }, 150);
-    }, { passive: true });
+      }
+      return text.trim();
+    }
+    if (el.tagName === 'PRE') {
+      const codeEl = el.querySelector('code');
+      const codeText = (codeEl ?? el).textContent ?? '';
+      const codeLines = codeText.split('\n');
+      const preRect = el.getBoundingClientRect();
+      if (preRect.top >= 0) {
+        return codeLines.find(l => l.trim().length > 0)?.trim() ?? '';
+      }
+      const lineHeight = preRect.height / Math.max(codeLines.length, 1);
+      const linesScrolled = Math.floor(Math.abs(preRect.top) / lineHeight);
+      const idx = Math.min(linesScrolled, codeLines.length - 1);
+      for (let i = idx; i < codeLines.length; i++) {
+        if (codeLines[i].trim().length > 0) {
+          return codeLines[i].trim();
+        }
+      }
+      return '';
+    }
+    return el.textContent?.trim() ?? '';
   }
 
   handleMessage(msg: ExtensionToWebviewMessage): void {
@@ -117,14 +188,20 @@ export class SyncClient {
           const anchor = this.pendingScrollAnchor;
           this.pendingScrollAnchor = null;
           requestAnimationFrame(() => this.applyScrollAnchor(anchor));
+        } else {
+          // Send initial anchor so the extension always has a cached position
+          requestAnimationFrame(() => this.computeAndSendAnchor());
         }
         break;
 
       case 'scrollToAnchor': {
+        const anchor = {
+          anchorText: msg.anchorText, lineIndex: msg.lineIndex, totalLines: msg.totalLines,
+          roughFraction: msg.roughFraction,
+        };
         if (!this.isInitialized) {
-          this.pendingScrollAnchor = { anchorText: msg.anchorText, lineIndex: msg.lineIndex, totalLines: msg.totalLines };
+          this.pendingScrollAnchor = anchor;
         } else {
-          const anchor = { anchorText: msg.anchorText, lineIndex: msg.lineIndex, totalLines: msg.totalLines };
           requestAnimationFrame(() => this.applyScrollAnchor(anchor));
         }
         break;
@@ -145,64 +222,96 @@ export class SyncClient {
   }
 
   private applyScrollAnchor(
-    anchor: { anchorText: string; lineIndex: number; totalLines: number },
+    anchor: { anchorText: string; lineIndex: number; totalLines: number; roughFraction?: number },
     retriesLeft: number = 5
   ): void {
-    const doc = this.editor.state.doc;
-    const totalSize = doc.content.size;
-    const candidates: { pos: number; offset: number }[] = [];
-
-    doc.forEach((node, offset) => {
-      const text = node.textContent.trim();
-      if (text === anchor.anchorText) {
-        candidates.push({ pos: offset + 1, offset });
-      }
-    });
-
-    // If exact match failed, try prefix matching
-    if (candidates.length === 0 && anchor.anchorText.length > 20) {
-      const prefix = anchor.anchorText.substring(0, 30);
-      doc.forEach((node, offset) => {
-        const text = node.textContent.trim();
-        if (text.startsWith(prefix)) {
-          candidates.push({ pos: offset + 1, offset });
-        }
-      });
-    }
-
-    let targetPos: number;
-    if (candidates.length === 0) {
-      const roughFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
-      targetPos = Math.min(Math.floor(roughFraction * totalSize), Math.max(0, totalSize - 1));
-    } else if (candidates.length === 1) {
-      targetPos = candidates[0].pos;
-    } else {
-      const expectedFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
-      let best = candidates[0];
-      let bestDiff = Infinity;
-      for (const c of candidates) {
-        const nodeFraction = c.offset / totalSize;
-        const diff = Math.abs(nodeFraction - expectedFraction);
-        if (diff < bestDiff) {
-          bestDiff = diff;
-          best = c;
-        }
-      }
-      targetPos = best.pos;
-    }
-
-    try {
-      const coords = this.editor.view.coordsAtPos(targetPos);
-      window.scrollTo({ top: coords.top + window.scrollY, behavior: 'instant' as ScrollBehavior });
-    } catch {
+    const fraction = anchor.roughFraction != null
+      ? anchor.roughFraction
+      : (anchor.totalLines > 1 ? anchor.lineIndex / (anchor.totalLines - 1) : 0);
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+    if (scrollable <= 0) {
       if (retriesLeft > 0) {
-        setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
+        this.retryTimer = setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
+      }
+      return;
+    }
+
+    // Try DOM text matching first (same coordinate system as detection)
+    if (anchor.anchorText) {
+      const match = this.findElementByText(anchor.anchorText, fraction);
+      if (match) {
+        const targetScrollY = match.measureEl.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({ top: targetScrollY, behavior: 'instant' as ScrollBehavior });
         return;
       }
-      const roughFraction = anchor.totalLines > 0 ? anchor.lineIndex / anchor.totalLines : 0;
-      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-      window.scrollTo({ top: roughFraction * Math.max(0, scrollable) });
     }
+
+    // Fallback: percentage-based scroll
+    const targetScrollY = fraction * scrollable;
+    window.scrollTo({ top: targetScrollY, behavior: 'instant' as ScrollBehavior });
+    if (retriesLeft > 0 && Math.abs(window.scrollY - targetScrollY) > 10) {
+      this.retryTimer = setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
+    }
+  }
+
+  private findElementByText(
+    anchorText: string,
+    roughFraction: number
+  ): { element: Element; measureEl: Element } | null {
+    const editorEl = this.editor.view && this.editor.view.dom;
+    if (!editorEl || !anchorText) return null;
+
+    const allBlocks = editorEl.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, pre, th, td');
+    const candidates: { element: Element; measureEl: Element; index: number }[] = [];
+
+    const seenRows = new Set<Element>();
+    let idx = 0;
+    for (const el of Array.from(allBlocks)) {
+      if (el.tagName === 'P' && el.parentElement?.tagName === 'LI') { idx++; continue; }
+
+      // For table cells, only process the first cell per row (all cells return the same row text)
+      if (el.tagName === 'TH' || el.tagName === 'TD') {
+        const tr = el.closest('tr');
+        if (tr) {
+          if (seenRows.has(tr)) { idx++; continue; }
+          seenRows.add(tr);
+        }
+      }
+
+      let measureEl: Element = el;
+      if (el.tagName === 'LI' && el.querySelector(':scope > ul, :scope > ol')) {
+        const directP = el.querySelector(':scope > p');
+        if (directP) {
+          measureEl = directP;
+        } else {
+          idx++;
+          continue;
+        }
+      }
+
+      const text = this.extractElementText(el);
+      if (text === anchorText) {
+        candidates.push({ element: el, measureEl, index: idx });
+      }
+      idx++;
+    }
+
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) return candidates[0];
+
+    // Disambiguate using position fraction
+    const totalBlocks = allBlocks.length;
+    let best = candidates[0];
+    let bestDiff = Infinity;
+    for (const c of candidates) {
+      const posFraction = totalBlocks > 1 ? c.index / (totalBlocks - 1) : 0;
+      const diff = Math.abs(posFraction - roughFraction);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = c;
+      }
+    }
+    return best;
   }
 
   private setAdaptiveDebounce(charCount: number): void {
@@ -303,16 +412,21 @@ export class SyncClient {
       this.debounceTimer = null;
     }
 
-    if (this.scrollTimer !== null) {
-      clearTimeout(this.scrollTimer);
-      this.scrollTimer = null;
-    }
-
     this.pendingScrollAnchor = null;
 
     if (this.keydownHandler !== null) {
       document.removeEventListener('keydown', this.keydownHandler);
       this.keydownHandler = null;
+    }
+
+    if (this.scrollHandler !== null) {
+      window.removeEventListener('scroll', this.scrollHandler);
+      this.scrollHandler = null;
+    }
+
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
     }
   }
 }

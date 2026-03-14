@@ -53,12 +53,10 @@ export function findAnchorLine(
 		}
 	}
 	if (candidates.length === 0) {
-		const totalChars = document.getText().length;
-		const charOffset = Math.min(
-			Math.floor(roughFraction * totalChars),
-			Math.max(0, totalChars - 1)
+		return Math.min(
+			Math.max(0, Math.round(roughFraction * Math.max(1, totalLines - 1))),
+			Math.max(0, totalLines - 1)
 		);
-		return document.positionAt(charOffset).line;
 	}
 	if (candidates.length === 1) return candidates[0];
 	let best = candidates[0];
@@ -120,6 +118,10 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
+	let activeScrollDisposable: vscode.Disposable | undefined;
+	let activeScrollSettleTimer: ReturnType<typeof setTimeout> | undefined;
+	let activeScrollFailsafeTimer: ReturnType<typeof setTimeout> | undefined;
+
 	const toggleCmd = vscode.commands.registerCommand(
 		'liveMarkdown.toggleRawMarkdown',
 		async () => {
@@ -150,13 +152,59 @@ export function activate(context: vscode.ExtensionContext) {
 				if (rawAnchor) {
 					const editor = vscode.window.activeTextEditor;
 					if (editor) {
-						const targetLine = findAnchorLine(
-							editor.document,
-							rawAnchor.anchorText,
-							rawAnchor.roughFraction
-						);
-						const range = new vscode.Range(targetLine, 0, targetLine, 0);
-						editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+						const totalLines = editor.document.lineCount;
+						const targetLine = rawAnchor.anchorText
+							? findAnchorLine(editor.document, rawAnchor.anchorText, rawAnchor.roughFraction)
+							: Math.min(
+								Math.round(rawAnchor.roughFraction * Math.max(1, totalLines - 1)),
+								Math.max(0, totalLines - 1)
+							);
+						// Reveal the target line, then compensate for sticky scroll headers.
+						// revealRange(line, AtTop) puts the line below sticky headers,
+						// but visibleRanges[0].start.line reports the viewport top (above sticky).
+						// This asymmetry causes drift, so we overshoot by the measured offset.
+						const revealWithCompensation = () => {
+							const range = new vscode.Range(targetLine, 0, targetLine, 0);
+							editor.revealRange(range, vscode.TextEditorRevealType.AtTop);
+							setTimeout(() => {
+								const actual = editor.visibleRanges[0]?.start.line;
+								if (actual !== undefined && actual < targetLine) {
+									const adjusted = Math.min(
+										targetLine + (targetLine - actual),
+										Math.max(0, totalLines - 1)
+									);
+									editor.revealRange(
+										new vscode.Range(adjusted, 0, adjusted, 0),
+										vscode.TextEditorRevealType.AtTop
+									);
+								}
+							}, 30);
+						};
+						activeScrollDisposable?.dispose();
+						clearTimeout(activeScrollSettleTimer);
+						clearTimeout(activeScrollFailsafeTimer);
+
+						let settleTimer: ReturnType<typeof setTimeout>;
+						const rangeDisposable = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+							if (e.textEditor === editor) {
+								clearTimeout(settleTimer);
+								settleTimer = setTimeout(() => {
+									clearTimeout(activeScrollFailsafeTimer);
+									rangeDisposable.dispose();
+									activeScrollDisposable = undefined;
+									revealWithCompensation();
+								}, 100);
+							}
+						});
+						activeScrollDisposable = rangeDisposable;
+						activeScrollSettleTimer = settleTimer!;
+						activeScrollFailsafeTimer = setTimeout(() => {
+							clearTimeout(settleTimer);
+							rangeDisposable.dispose();
+							activeScrollDisposable = undefined;
+							revealWithCompensation();
+						}, 300);
+						revealWithCompensation();
 					}
 				}
 			} else if (input instanceof vscode.TabInputText) {
@@ -168,19 +216,12 @@ export function activate(context: vscode.ExtensionContext) {
 				const docUri = uri.toString();
 				const topLine = textEditor.visibleRanges[0]?.start.line ?? 0;
 				const totalLines = textEditor.document.lineCount;
-				let anchorText = '';
-				for (let i = topLine; i < Math.min(topLine + 10, totalLines); i++) {
-					const stripped = stripMarkdownSyntax(textEditor.document.lineAt(i).text);
-					if (stripped.length > 0) {
-						anchorText = stripped;
-						break;
-					}
-				}
-				if (anchorText) {
-					provider.setPendingPreviewAnchor(docUri, {
-						anchorText, lineIndex: topLine, totalLines,
-					});
-				}
+				const roughFraction = totalLines > 1 ? topLine / (totalLines - 1) : 0;
+				const topLineText = stripMarkdownSyntax(textEditor.document.lineAt(topLine).text);
+				provider.setPendingPreviewAnchor(docUri, {
+					anchorText: topLineText, lineIndex: topLine, totalLines,
+					roughFraction,
+				});
 
 				rawModeUris.delete(docUri);
 				await vscode.commands.executeCommand('workbench.action.closeActiveEditor');

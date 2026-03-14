@@ -10,7 +10,7 @@ interface PanelAnchorState {
 export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly context: vscode.ExtensionContext;
   private anchorStates = new Map<string, PanelAnchorState>();
-  private pendingPreviewAnchors = new Map<string, { anchorText: string; lineIndex: number; totalLines: number }>();
+  private pendingPreviewAnchors = new Map<string, { anchorText: string; lineIndex: number; totalLines: number; roughFraction?: number }>();
   private activeDocUri: string | null = null;
   private pendingRawAnchor: { anchorText: string; roughFraction: number } | null = null;
 
@@ -63,8 +63,11 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
       if (msg.type === 'scrollAnchorUpdate') {
+        if (typeof msg.anchorText !== 'string') return;
+        const fraction = Number(msg.roughFraction);
+        if (!Number.isFinite(fraction)) return;
         const state = this.anchorStates.get(docKey);
-        if (state) state.lastAnchor = { anchorText: msg.anchorText, roughFraction: msg.roughFraction };
+        if (state) state.lastAnchor = { anchorText: msg.anchorText, roughFraction: Math.max(0, Math.min(1, fraction)) };
         return;
       }
       syncManager.handleWebviewMessage(msg).then(() => {
@@ -114,7 +117,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     return this.anchorStates.get(docUri)?.lastAnchor ?? null;
   }
 
-  setPendingPreviewAnchor(docUri: string, anchor: { anchorText: string; lineIndex: number; totalLines: number }): void {
+  setPendingPreviewAnchor(docUri: string, anchor: { anchorText: string; lineIndex: number; totalLines: number; roughFraction?: number }): void {
     this.pendingPreviewAnchors.set(docUri, anchor);
   }
 

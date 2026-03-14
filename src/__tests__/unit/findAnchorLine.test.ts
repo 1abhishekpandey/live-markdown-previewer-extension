@@ -55,17 +55,14 @@ describe('findAnchorLine', () => {
     });
 
     it('falls back to roughFraction position when no text or prefix match exists', () => {
-        // 4 lines of 4 chars each, separated by '\n': total text = 4*4 + 3 = 19 chars… use simple case
-        // lines: ["aaaa", "bbbb", "cccc", "dddd"] → text = "aaaa\nbbbb\ncccc\ndddd" (19 chars)
-        // roughFraction=0.5 → charOffset = Math.floor(0.5 * 19) = 9
-        // positionAt(9): line 0 has 4 chars (0-4), subtract 5 → remaining=4, line 1 has 4 chars (0-4) → line 1
+        // lines: ["aaaa", "bbbb", "cccc", "dddd"] → 4 lines
+        // roughFraction=0.5 → Math.floor(0.5 * 4) = 2 → line 2
         const doc = makeDoc(['aaaa', 'bbbb', 'cccc', 'dddd']);
-        expect(findAnchorLine(doc, 'no match here', 0.5)).toBe(1);
+        expect(findAnchorLine(doc, 'no match here', 0.5)).toBe(2);
     });
 
     it('handles an empty document without throwing', () => {
-        // lineCount=0, getText()="" → totalChars=0 → charOffset=Math.min(0, Math.max(0,-1))=0
-        // positionAt(0) on empty doc returns { line: 0 }
+        // lineCount=0, totalLines=0 → Math.min(Math.max(0,0), Math.max(0,-1)) = Math.min(0,0) = 0
         const doc = makeDoc([]);
         expect(findAnchorLine(doc, 'anything', 0.5)).toBe(0);
     });
