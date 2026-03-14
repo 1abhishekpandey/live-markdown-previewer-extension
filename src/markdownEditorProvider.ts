@@ -66,9 +66,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
       if (msg.type === 'scrollAnchorUpdate') {
         const state = this.anchorStates.get(docKey);
         if (state) state.lastAnchor = { anchorText: msg.anchorText, roughFraction: msg.roughFraction };
-        const line = findAnchorLine(document, msg.anchorText, msg.roughFraction);
-        const lineText = document.lineAt(line).text;
-        webview.postMessage({ type: 'debugLineInfo', lineNum: line + 1, lineText });
+        findAnchorLine(document, msg.anchorText, msg.roughFraction);
         return;
       }
       syncManager.handleWebviewMessage(msg).then(() => {
