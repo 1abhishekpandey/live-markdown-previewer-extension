@@ -54,7 +54,7 @@ export function findAnchorLine(
 	}
 	if (candidates.length === 0) {
 		return Math.min(
-			Math.max(0, Math.floor(roughFraction * totalLines)),
+			Math.max(0, Math.round(roughFraction * Math.max(1, totalLines - 1))),
 			Math.max(0, totalLines - 1)
 		);
 	}
@@ -79,28 +79,6 @@ export function activate(context: vscode.ExtensionContext) {
 		provider,
 		{ webviewOptions: { retainContextWhenHidden: true } }
 	);
-
-	// Debug: status bar showing top visible line in raw mode
-	const debugStatus = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 1000);
-	debugStatus.name = 'Scroll Debug';
-	const updateDebugStatus = (editor: vscode.TextEditor) => {
-		if (editor.document.languageId === 'markdown') {
-			const topLine = editor.visibleRanges[0]?.start.line ?? 0;
-			const totalLines = editor.document.lineCount;
-			const lineText = editor.document.lineAt(topLine).text;
-			const truncated = lineText.length > 40 ? lineText.substring(0, 40) + '…' : lineText;
-			debugStatus.text = `$(debug) L${topLine + 1} ${truncated}`;
-		} else {
-			debugStatus.text = '';
-		}
-	};
-	const scrollDebugDisposable = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
-		updateDebugStatus(e.textEditor);
-	});
-	const editorDebugDisposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
-		if (editor) updateDebugStatus(editor);
-		else debugStatus.text = '';
-	});
 
 	// URIs the user explicitly toggled to raw mode — skip auto-switch for these
 	const rawModeUris = new Set<string>();
@@ -139,6 +117,10 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		}
 	});
+
+	let activeScrollDisposable: vscode.Disposable | undefined;
+	let activeScrollSettleTimer: ReturnType<typeof setTimeout> | undefined;
+	let activeScrollFailsafeTimer: ReturnType<typeof setTimeout> | undefined;
 
 	const toggleCmd = vscode.commands.registerCommand(
 		'liveMarkdown.toggleRawMarkdown',
@@ -198,18 +180,28 @@ export function activate(context: vscode.ExtensionContext) {
 								}
 							}, 30);
 						};
+						activeScrollDisposable?.dispose();
+						clearTimeout(activeScrollSettleTimer);
+						clearTimeout(activeScrollFailsafeTimer);
+
 						let settleTimer: ReturnType<typeof setTimeout>;
-						const disposable = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
+						const rangeDisposable = vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
 							if (e.textEditor === editor) {
 								clearTimeout(settleTimer);
 								settleTimer = setTimeout(() => {
-									disposable.dispose();
+									clearTimeout(activeScrollFailsafeTimer);
+									rangeDisposable.dispose();
+									activeScrollDisposable = undefined;
 									revealWithCompensation();
 								}, 100);
 							}
 						});
-						settleTimer = setTimeout(() => {
-							disposable.dispose();
+						activeScrollDisposable = rangeDisposable;
+						activeScrollSettleTimer = settleTimer!;
+						activeScrollFailsafeTimer = setTimeout(() => {
+							clearTimeout(settleTimer);
+							rangeDisposable.dispose();
+							activeScrollDisposable = undefined;
 							revealWithCompensation();
 						}, 300);
 						revealWithCompensation();
@@ -240,7 +232,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	context.subscriptions.push(disposable, autoOpenDisposable, tabCloseDisposable, toggleCmd, debugStatus, scrollDebugDisposable, editorDebugDisposable);
+	context.subscriptions.push(disposable, autoOpenDisposable, tabCloseDisposable, toggleCmd);
 }
 
 export function deactivate() {}

@@ -20,6 +20,8 @@ export class SyncClient {
   // Buffered scroll anchor for when 'scrollToAnchor' arrives before 'init'.
   private pendingScrollAnchor: { anchorText: string; lineIndex: number; totalLines: number; roughFraction?: number } | null = null;
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
+  private scrollHandler: (() => void) | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private debounceDelayInMs: number = 300;
   private onFirstInit: (() => void) | undefined;
   private isReadOnly: boolean = false;
@@ -62,15 +64,17 @@ export class SyncClient {
     // Use rAF throttle instead of debounce — ensures cached anchor is always
     // within ~16ms of the current scroll position (critical for toggle sync)
     let scrollRAFPending = false;
-    window.addEventListener('scroll', () => {
+    this.scrollHandler = () => {
       if (!scrollRAFPending) {
         scrollRAFPending = true;
         requestAnimationFrame(() => {
+          if (!this.isInitialized) { scrollRAFPending = false; return; }
           this.computeAndSendAnchor();
           scrollRAFPending = false;
         });
       }
-    }, { passive: true });
+    };
+    window.addEventListener('scroll', this.scrollHandler, { passive: true });
   }
 
   private computeAndSendAnchor(): void {
@@ -225,7 +229,12 @@ export class SyncClient {
       ? anchor.roughFraction
       : (anchor.totalLines > 1 ? anchor.lineIndex / (anchor.totalLines - 1) : 0);
     const scrollable = document.documentElement.scrollHeight - window.innerHeight;
-    if (scrollable <= 0) return;
+    if (scrollable <= 0) {
+      if (retriesLeft > 0) {
+        this.retryTimer = setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
+      }
+      return;
+    }
 
     // Try DOM text matching first (same coordinate system as detection)
     if (anchor.anchorText) {
@@ -233,9 +242,6 @@ export class SyncClient {
       if (match) {
         const targetScrollY = match.measureEl.getBoundingClientRect().top + window.scrollY;
         window.scrollTo({ top: targetScrollY, behavior: 'instant' as ScrollBehavior });
-        if (retriesLeft > 0 && Math.abs(window.scrollY - targetScrollY) > 10) {
-          setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
-        }
         return;
       }
     }
@@ -244,7 +250,7 @@ export class SyncClient {
     const targetScrollY = fraction * scrollable;
     window.scrollTo({ top: targetScrollY, behavior: 'instant' as ScrollBehavior });
     if (retriesLeft > 0 && Math.abs(window.scrollY - targetScrollY) > 10) {
-      setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
+      this.retryTimer = setTimeout(() => this.applyScrollAnchor(anchor, retriesLeft - 1), 50);
     }
   }
 
@@ -261,7 +267,7 @@ export class SyncClient {
     const seenRows = new Set<Element>();
     let idx = 0;
     for (const el of Array.from(allBlocks)) {
-      if (el.tagName === 'P' && el.parentElement?.tagName === 'LI') continue;
+      if (el.tagName === 'P' && el.parentElement?.tagName === 'LI') { idx++; continue; }
 
       // For table cells, only process the first cell per row (all cells return the same row text)
       if (el.tagName === 'TH' || el.tagName === 'TD') {
@@ -393,18 +399,6 @@ export class SyncClient {
     document.addEventListener('keydown', this.keydownHandler);
   }
 
-  updateDebugOverlay(lineNum: number, lineText: string): void {
-    let overlay = document.getElementById('scroll-debug-overlay');
-    if (!overlay) {
-      overlay = document.createElement('div');
-      overlay.id = 'scroll-debug-overlay';
-      overlay.style.cssText = 'position:fixed;top:4px;right:4px;background:rgba(0,0,0,0.85);color:#0f0;font:13px/1.3 monospace;padding:6px 10px;border-radius:4px;z-index:99999;max-width:400px;pointer-events:none;';
-      document.body.appendChild(overlay);
-    }
-    const truncated = lineText.length > 50 ? lineText.substring(0, 50) + '…' : lineText;
-    overlay.textContent = `L${lineNum} ${truncated}`;
-  }
-
   private insertReadOnlyBanner(): void {
     const banner = document.createElement('div');
     banner.id = 'read-only-banner';
@@ -423,6 +417,16 @@ export class SyncClient {
     if (this.keydownHandler !== null) {
       document.removeEventListener('keydown', this.keydownHandler);
       this.keydownHandler = null;
+    }
+
+    if (this.scrollHandler !== null) {
+      window.removeEventListener('scroll', this.scrollHandler);
+      this.scrollHandler = null;
+    }
+
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
     }
   }
 }
