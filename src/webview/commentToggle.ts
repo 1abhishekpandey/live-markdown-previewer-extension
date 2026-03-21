@@ -22,6 +22,8 @@ export class CommentToggle {
 
   // DOM elements
   private toggleBtn: HTMLButtonElement;
+  private reviewBarEl: HTMLDivElement;
+  private prBadgeEl: HTMLSpanElement;
   private refreshBtn: HTMLButtonElement;
   private submitBtn: HTMLButtonElement;
   private stalenessEl: HTMLSpanElement;
@@ -32,33 +34,56 @@ export class CommentToggle {
     this.vscode = vscode;
     this.store = store;
 
-    // Create toggle button
+    // Row 1: toggle button (always visible)
     this.toggleBtn = document.createElement('button');
     this.toggleBtn.className = 'review-toggle';
-    this.toggleBtn.textContent = 'Review';
+    this.toggleBtn.textContent = 'Review: Off';
     this.toggleBtn.addEventListener('click', () => this.onToggleClick());
     document.body.appendChild(this.toggleBtn);
 
-    // Create refresh button (hidden by default)
+    // Row 2 container (hidden when review OFF)
+    this.reviewBarEl = document.createElement('div');
+    this.reviewBarEl.className = 'review-bar';
+    this.reviewBarEl.style.display = 'none';
+
+    // Line 1: PR badge (clickable → opens PR on GitHub)
+    this.prBadgeEl = document.createElement('span');
+    this.prBadgeEl.className = 'review-pr-badge';
+    this.prBadgeEl.addEventListener('click', () => {
+      this.vscode.postMessage({ type: 'commentOpenPr' });
+    });
+    this.reviewBarEl.appendChild(this.prBadgeEl);
+
+    // Line 2: Refresh + staleness
+    const refreshRow = document.createElement('div');
+    refreshRow.className = 'review-refresh-row';
+
     this.refreshBtn = document.createElement('button');
     this.refreshBtn.className = 'review-refresh';
-    this.refreshBtn.textContent = 'Refresh';
-    this.refreshBtn.style.display = 'none';
+    this.refreshBtn.textContent = 'Refresh ↻';
+    this.refreshBtn.title = 'Refresh comments';
     this.refreshBtn.addEventListener('click', () => this.onRefreshClick());
-    document.body.appendChild(this.refreshBtn);
+    refreshRow.appendChild(this.refreshBtn);
 
-    // Create submit button (hidden by default)
+    const sep = document.createElement('span');
+    sep.textContent = '·';
+    sep.style.opacity = '0.5';
+    refreshRow.appendChild(sep);
+
+    this.stalenessEl = document.createElement('span');
+    this.stalenessEl.className = 'review-staleness';
+    refreshRow.appendChild(this.stalenessEl);
+
+    this.reviewBarEl.appendChild(refreshRow);
+
+    // Submit button (appears when pending comments exist)
     this.submitBtn = document.createElement('button');
     this.submitBtn.className = 'review-submit';
     this.submitBtn.style.display = 'none';
     this.submitBtn.addEventListener('click', () => this.onSubmitClick());
-    document.body.appendChild(this.submitBtn);
+    this.reviewBarEl.appendChild(this.submitBtn);
 
-    // Staleness indicator (hidden by default)
-    this.stalenessEl = document.createElement('span');
-    this.stalenessEl.className = 'review-staleness';
-    this.stalenessEl.style.display = 'none';
-    document.body.appendChild(this.stalenessEl);
+    document.body.appendChild(this.reviewBarEl);
 
     // Subscribe to pending count changes
     this.unsubscribe = this.store.onChange(() => this.updateSubmitButton());
@@ -126,24 +151,15 @@ export class CommentToggle {
 
     // Update toggle button
     this.toggleBtn.classList.remove('loading');
-    this.toggleBtn.textContent = '';
-    this.toggleBtn.appendChild(document.createTextNode('Review: ON  '));
-    const badge = document.createElement('span');
-    badge.className = 'review-pr-badge';
-    badge.textContent = `PR #${msg.prNumber}`;
-    badge.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.vscode.postMessage({ type: 'commentOpenPr' });
-    });
-    this.toggleBtn.appendChild(badge);
+    this.toggleBtn.textContent = 'Review: On';
 
-    // Set editor read-only (table cell selection already handled by capture-phase handler)
+    // Set editor read-only
     this.editor.setEditable(false, false);
 
-    // Show refresh + staleness
-    this.refreshBtn.style.display = '';
+    // Show review bar (row 2)
+    this.prBadgeEl.textContent = `PR #${msg.prNumber}`;
     this.refreshBtn.classList.remove('loading');
-    this.stalenessEl.style.display = '';
+    this.reviewBarEl.style.display = '';
     this.updateStaleness();
     this.startStalenessTimer();
 
@@ -217,8 +233,8 @@ export class CommentToggle {
     }
 
     this.stalenessEl.textContent = minutes < 1
-      ? 'Last refreshed just now'
-      : `Last refreshed ${minutes} min ago`;
+      ? 'just now'
+      : `${minutes} min ago`;
   }
 
   private startStalenessTimer(): void {
@@ -235,11 +251,10 @@ export class CommentToggle {
 
   private cleanup(): void {
     this.stopStalenessTimer();
-    this.toggleBtn.textContent = 'Review';
+    this.toggleBtn.textContent = 'Review: Off';
     this.toggleBtn.classList.remove('loading', 'error');
-    this.refreshBtn.style.display = 'none';
+    this.reviewBarEl.style.display = 'none';
     this.submitBtn.style.display = 'none';
-    this.stalenessEl.style.display = 'none';
     this.prNumber = null;
     this.prUrl = null;
     this.lastFetchedAt = null;
