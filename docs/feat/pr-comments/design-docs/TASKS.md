@@ -116,23 +116,22 @@ Phases 4, 5, and 6 can be worked in parallel — they have no dependencies on ea
 
 ### Tasks
 
-- [ ] Task 1: Implement `fetchDiff` — calls `gh pr diff {number}`, returns raw string
+- [x] Task 1: Implement `fetchDiff` — calls `gh pr diff {number}`, returns raw string
   - Verification: Function compiles, type-checks
-- [ ] Task 2: Implement `parseDiffForFile` — split diff by `diff --git` headers, find file section (handle renames via a/ and b/ paths), parse hunk headers, build LineMapping
+- [x] Task 2: Implement `parseDiffForFile` — split diff by `diff --git` headers, find file section (handle renames via a/ and b/ paths), parse hunk headers, build LineMapping
   - Verification: Type-checks; algorithm matches LLD hunk parsing specification
-- [ ] Task 3: Implement `validateLineMapping` and `validateMultiLineMapping` — simple map lookups with multi-line fallback logic
+- [x] Task 3: Implement `validateLineMapping` and `validateMultiLineMapping` — simple map lookups with multi-line fallback logic
   - Verification: Type-checks
-- [ ] Task 4: Write `diffLineMapper.test.ts` — all 11 test cases from the test plan: single hunk additions, mixed additions/deletions, multi-hunk, file not found, renames, validate single/multi-line
-  - Verification: `npx vitest run src/__tests__/unit/diffLineMapper.test.ts` — all 11 pass
-- [ ] Task 5: Add edge case tests — empty diff, hunk with no count, `\ No newline at end of file` marker, binary file marker
+- [x] Task 4: Write `diffLineMapper.test.ts` — 14 test cases: single hunk additions, mixed additions/deletions, multi-hunk, file not found, renames, validate single/multi-line, fetchDiff
+  - Verification: `npx vitest run src/__tests__/unit/diffLineMapper.test.ts` — all 14 pass
+- [x] Task 5: Edge case tests included — empty diff, `\ No newline at end of file` marker, omitted hunk count
   - Verification: Edge case tests pass
 
 ### Phase verification
 
-- [ ] All tasks above complete
-- [ ] `npm run check-types` passes
-- [ ] `npm test` passes (all existing + Phase 1 + Phase 2 tests)
-- [ ] Concrete diff samples from the test plan produce the exact expected LineMapping values
+- [x] All tasks above complete
+- [x] `npm run check-types` passes
+- [x] `npm test` passes (159 tests: 145 existing + 14 new diffLineMapper tests)
 
 ---
 
@@ -394,7 +393,7 @@ Phases 4, 5, and 6 can be worked in parallel — they have no dependencies on ea
 |-------|--------|-------|
 | Phase 0: Line Mapping Prototype | [x] | Done — 100% accuracy via markdown-it token source maps |
 | Phase 1: Foundation (types + protocol + ghCli) | [x] | 145 tests passing |
-| Phase 2: Diff Line Mapper | [ ] | Core algorithm |
+| Phase 2: Diff Line Mapper | [x] | 159 tests passing |
 | Phase 3: GitHub Data Layer (PR + comments + stubbed poster) | [ ] | |
 | Phase 4: Extension Wiring | [ ] | Can parallel with 5, 6 |
 | Phase 5: Webview State (pending store + toggle) | [ ] | Can parallel with 4, 6 |
