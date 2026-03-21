@@ -28,6 +28,8 @@ export class CommentToggle {
   private submitBtn: HTMLButtonElement;
   private discardBtn: HTMLButtonElement;
   private stalenessEl: HTMLSpanElement;
+  private errorEl: HTMLSpanElement;
+  private errorTimeout: ReturnType<typeof setTimeout> | null = null;
   private unsubscribe: (() => void) | null = null;
 
   constructor(editor: Editor, vscode: VsCodeApi, store: PendingCommentStore) {
@@ -94,6 +96,12 @@ export class CommentToggle {
     this.actionsRow.appendChild(this.discardBtn);
 
     this.reviewBarEl.appendChild(this.actionsRow);
+
+    // Error message (hidden by default)
+    this.errorEl = document.createElement('span');
+    this.errorEl.className = 'review-error';
+    this.errorEl.style.display = 'none';
+    this.reviewBarEl.appendChild(this.errorEl);
 
     document.body.appendChild(this.reviewBarEl);
 
@@ -196,13 +204,19 @@ export class CommentToggle {
   /** Called when extension sends commentError */
   handleError(msg: CommentErrorMessage): void {
     this.toggleBtn.classList.remove('loading');
-    this.toggleBtn.title = msg.message;
-    // Show error tooltip for 5 seconds
-    this.toggleBtn.classList.add('error');
-    setTimeout(() => {
-      this.toggleBtn.classList.remove('error');
-      this.toggleBtn.title = '';
-    }, 5000);
+
+    // Show error visibly in the review bar
+    if (this.errorTimeout) clearTimeout(this.errorTimeout);
+    this.errorEl.textContent = msg.message;
+    this.errorEl.style.display = '';
+    this.reviewBarEl.style.display = '';
+
+    this.errorTimeout = setTimeout(() => {
+      this.errorEl.style.display = 'none';
+      if (!this.reviewActive) {
+        this.reviewBarEl.style.display = 'none';
+      }
+    }, 8000);
   }
 
   isActive(): boolean {

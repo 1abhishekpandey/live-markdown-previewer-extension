@@ -655,6 +655,14 @@ html, body {
   color: var(--vscode-testing-iconFailed, #f44);
 }
 
+.review-error {
+  color: var(--vscode-testing-iconFailed, #f44);
+  font-size: 11px;
+  max-width: 300px;
+  text-align: right;
+  line-height: 1.3;
+}
+
 /* Diff highlighting */
 .diff-highlight {
   background: rgba(0, 180, 0, 0.08);
