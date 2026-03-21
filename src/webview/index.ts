@@ -263,8 +263,30 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
   if (!state.reviewMode) return;
 
   const target = e.target as HTMLElement;
+
+  // Check if clicking a pending comment badge → open panel to view pending comments
+  const pendingLine = target.closest('.comment-highlight-pending[data-pending-line]') as HTMLElement | null;
+  if (pendingLine) {
+    const rect = pendingLine.getBoundingClientRect();
+    if (e.clientX >= rect.right - 50) {
+      const line = Number(pendingLine.dataset.pendingLine);
+      const startLine = pendingLine.dataset.pendingStartLine
+        ? Number(pendingLine.dataset.pendingStartLine)
+        : null;
+      if (!isNaN(line)) {
+        e.stopPropagation();
+        e.preventDefault();
+        commentPanel.openNew(line, startLine, pendingLine);
+        return;
+      }
+    }
+  }
+
+  // Otherwise: "+" button on diff-highlighted lines (no pending comment on this line)
   const diffLine = target.closest('.diff-highlight') as HTMLElement | null;
   if (!diffLine) return;
+  // Skip if this line already has a pending comment
+  if (diffLine.dataset.pendingCount) return;
 
   const rect = diffLine.getBoundingClientRect();
   if (e.clientX < rect.right - 38) return;

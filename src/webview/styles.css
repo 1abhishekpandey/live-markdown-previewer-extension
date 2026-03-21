@@ -672,8 +672,37 @@ html, body {
 }
 
 .comment-highlight-pending {
-  background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 200, 0, 0.1));
+  background: rgba(200, 120, 0, 0.15) !important;
   border: 1px dashed var(--vscode-editorInfo-foreground);
+  position: relative;
+}
+
+/* On the end line of a pending comment, show the count badge instead of "+" */
+.comment-highlight-pending[data-pending-count]::after {
+  content: '+' attr(data-pending-count);
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  background: var(--vscode-badge-background, #4d4d4d);
+  color: var(--vscode-badge-foreground, #fff);
+  border: 1px dashed var(--vscode-editorInfo-foreground);
+  border-radius: 11px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.8;
+  z-index: 5;
+}
+
+.comment-highlight-pending[data-pending-count]:hover::after {
+  opacity: 1;
 }
 
 /* Comment badge */

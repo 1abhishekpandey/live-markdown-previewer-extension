@@ -144,31 +144,40 @@ function buildDecorations(doc: PmNode, state: CommentIndicatorState): Decoration
   }
 
   // Pending-only comment indicators (lines with pending comments but no existing thread).
-  // workingCopyLine on PendingComment is also 1-indexed.
+  // Track which lines already have pending decoration to avoid duplicates.
+  const pendingDecoratedLines = new Set<number>();
   for (const pc of pendingComments) {
     if (commentedLines.has(pc.workingCopyLine)) continue;
-    const line0 = pc.workingCopyLine - 1;
-    const pos = findPosForLine(lineMap, line0);
-    if (pos === null) continue;
-    const node = doc.nodeAt(pos);
-    if (!node) continue;
 
-    decorations.push(
-      Decoration.node(pos, pos + node.nodeSize, {
-        class: 'comment-highlight-pending',
-      }),
-    );
+    // Determine the line range: startLine..endLine for multi-line, or just endLine
+    const startLine1 = pc.workingCopyStartLine ?? pc.workingCopyLine;
+    const endLine1 = pc.workingCopyLine;
 
-    const count = pendingCounts.get(pc.workingCopyLine) || 1;
-    decorations.push(
-      Decoration.widget(pos + node.nodeSize, () => {
-        const badge = document.createElement('span');
-        badge.className = 'comment-badge pending';
-        badge.textContent = `+${count}`;
-        badge.dataset.line = String(pc.workingCopyLine);
-        return badge;
-      }, { side: 1 }),
-    );
+    for (let line1 = startLine1; line1 <= endLine1; line1++) {
+      if (pendingDecoratedLines.has(line1)) continue;
+      pendingDecoratedLines.add(line1);
+
+      const line0 = line1 - 1;
+      const pos = findPosForLine(lineMap, line0);
+      if (pos === null) continue;
+      const node = doc.nodeAt(pos);
+      if (!node) continue;
+
+      const count = pendingCounts.get(pc.workingCopyLine) || 1;
+      const isEndLine = line1 === endLine1;
+
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: 'comment-highlight-pending',
+          // On the end line, store count + line for the badge and click handling
+          ...(isEndLine ? {
+            'data-pending-count': String(count),
+            'data-pending-line': String(pc.workingCopyLine),
+            'data-pending-start-line': pc.workingCopyStartLine ? String(pc.workingCopyStartLine) : '',
+          } : {}),
+        }),
+      );
+    }
   }
 
   return DecorationSet.create(doc, decorations);
