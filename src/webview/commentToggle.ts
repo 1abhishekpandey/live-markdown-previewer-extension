@@ -192,22 +192,22 @@ export class CommentToggle {
         this.updateSubmitButton();
       }, 2000);
     } else {
-      this.submitState = 'error';
-      this.submitBtn.textContent = `✗ ${msg.error || 'Failed'}`;
-      setTimeout(() => {
-        this.submitState = 'idle';
-        this.updateSubmitButton();
-      }, 3000);
+      this.submitState = 'idle';
+      this.updateSubmitButton();
+      // Show error in the visible error element
+      this.showError(msg.error || 'Failed to submit review');
     }
   }
 
   /** Called when extension sends commentError */
   handleError(msg: CommentErrorMessage): void {
     this.toggleBtn.classList.remove('loading');
+    this.showError(msg.message);
+  }
 
-    // Show error visibly in the review bar
+  private showError(message: string): void {
     if (this.errorTimeout) clearTimeout(this.errorTimeout);
-    this.errorEl.textContent = msg.message;
+    this.errorEl.textContent = message;
     this.errorEl.style.display = '';
     this.reviewBarEl.style.display = '';
 

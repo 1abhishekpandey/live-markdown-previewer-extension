@@ -985,3 +985,16 @@ html, body {
 .comment-reply-queue:hover {
   background: var(--vscode-button-hoverBackground);
 }
+
+/* Draft review comments (pending review, visible only to author) */
+.comment-entry-draft {
+  border-left: 2px solid var(--vscode-editorInfo-foreground, #3794ff);
+  padding-left: 8px;
+  opacity: 0.85;
+}
+
+.comment-draft-label {
+  color: var(--vscode-editorInfo-foreground, #3794ff);
+  font-size: 11px;
+  font-style: italic;
+}

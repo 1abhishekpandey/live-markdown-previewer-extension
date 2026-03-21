@@ -200,7 +200,10 @@ export class CommentPanel {
 
   private renderComment(comment: CommentData): HTMLElement {
     const entry = document.createElement('div');
-    entry.className = comment.isOutdated ? 'comment-entry comment-entry-outdated' : 'comment-entry';
+    let className = 'comment-entry';
+    if (comment.isOutdated) className += ' comment-entry-outdated';
+    if (comment.isPending) className += ' comment-entry-draft';
+    entry.className = className;
 
     const meta = document.createElement('div');
     meta.className = 'comment-meta';
@@ -220,6 +223,13 @@ export class CommentPanel {
       outdated.className = 'comment-outdated-label';
       outdated.textContent = 'Outdated';
       meta.appendChild(outdated);
+    }
+
+    if (comment.isPending) {
+      const draft = document.createElement('span');
+      draft.className = 'comment-draft-label';
+      draft.textContent = 'Draft';
+      meta.appendChild(draft);
     }
 
     entry.appendChild(meta);

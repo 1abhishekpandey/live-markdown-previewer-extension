@@ -14,7 +14,7 @@ import type {
 } from '../sync/syncProtocol';
 import { isGhAvailable, isGhAuthenticated, GhApiError, classifyGhError } from './ghCli';
 import { detectPr, openPrInBrowser } from './prDetector';
-import { fetchComments, fetchCurrentUser } from './commentFetcher';
+import { fetchComments, fetchPendingReviewComments, fetchCurrentUser } from './commentFetcher';
 import { submitReviewBatch, getLatestCommitSha } from './commentPoster';
 import { fetchDiff, parseDiffForFile, validateMultiLineMapping } from './diffLineMapper';
 
@@ -84,7 +84,12 @@ export class CommentHandler {
 
     this.cachedLineMapping = lineMapping;
 
-    const threads = await fetchComments(prInfo, filePath, lineMapping, currentUser, this.cwd);
+    const [publishedThreads, pendingThreads] = await Promise.all([
+      fetchComments(prInfo, filePath, lineMapping, currentUser, this.cwd),
+      fetchPendingReviewComments(prInfo, filePath, lineMapping, currentUser, this.cwd),
+    ]);
+    const threads = [...publishedThreads, ...pendingThreads]
+      .sort((a, b) => a.workingCopyLine - b.workingCopyLine);
     const diffHighlightLines = lineMapping.addedLines.map((l) => l.lineNumber);
 
     this.postMessage({
@@ -118,13 +123,24 @@ export class CommentHandler {
       const lineMapping = parseDiffForFile(diffOutput, filePath);
       this.cachedLineMapping = lineMapping;
 
-      const threads = await fetchComments(
-        this.cachedPrInfo,
-        filePath,
-        lineMapping,
-        this.cachedCurrentUser,
-        this.cwd,
-      );
+      const [publishedThreads, pendingThreads] = await Promise.all([
+        fetchComments(
+          this.cachedPrInfo,
+          filePath,
+          lineMapping,
+          this.cachedCurrentUser,
+          this.cwd,
+        ),
+        fetchPendingReviewComments(
+          this.cachedPrInfo,
+          filePath,
+          lineMapping,
+          this.cachedCurrentUser,
+          this.cwd,
+        ),
+      ]);
+      const threads = [...publishedThreads, ...pendingThreads]
+        .sort((a, b) => a.workingCopyLine - b.workingCopyLine);
 
       const diffHighlightLines = lineMapping.addedLines.map((l) => l.lineNumber);
 
@@ -183,15 +199,20 @@ export class CommentHandler {
     }
 
     const filePath = this.getRelativePath();
+    console.log('[LiveMarkdown] Submit review — cwd:', this.cwd, 'filePath:', filePath);
+    console.log('[LiveMarkdown] Pending comments:', JSON.stringify(msg.pending, null, 2));
 
     const newComments = msg.pending.filter((c) => c.threadId === null);
     const replies = msg.pending.filter((c) => c.threadId !== null);
+    console.log('[LiveMarkdown] New comments:', newComments.length, 'Replies:', replies.length);
 
     try {
       const commitSha = await getLatestCommitSha(this.cachedPrInfo, this.cwd);
+      console.log('[LiveMarkdown] Commit SHA:', commitSha);
 
       const diffOutput = await fetchDiff(this.cachedPrInfo, this.cwd);
       const freshMapping = parseDiffForFile(diffOutput, filePath);
+      console.log('[LiveMarkdown] Fresh mapping — addedLines:', freshMapping.addedLines.length, 'wcToDiff size:', freshMapping.workingCopyToDiffLine.size);
 
       const validatedNew: PendingComment[] = [];
       const failedIds: string[] = [];
@@ -203,6 +224,7 @@ export class CommentHandler {
           freshMapping,
         );
 
+        console.log(`[LiveMarkdown] Validate line ${comment.workingCopyLine} → diffLine: ${mapped.diffLine}`);
         if (mapped.diffLine === null) {
           failedIds.push(comment.tempId);
           continue;
@@ -215,6 +237,8 @@ export class CommentHandler {
         });
       }
 
+      console.log('[LiveMarkdown] Validated:', validatedNew.length, 'Failed:', failedIds.length);
+
       if (failedIds.length > 0 && validatedNew.length === 0 && replies.length === 0) {
         this.postMessage({
           type: 'reviewSubmitResult',
@@ -225,6 +249,7 @@ export class CommentHandler {
         return;
       }
 
+      console.log('[LiveMarkdown] Calling submitReviewBatch...');
       const result = await submitReviewBatch(
         this.cachedPrInfo,
         validatedNew,
@@ -233,6 +258,7 @@ export class CommentHandler {
         filePath,
         this.cwd,
       );
+      console.log('[LiveMarkdown] Submit result:', JSON.stringify(result));
 
       const submitResult: ReviewSubmitResultMessage = {
         type: 'reviewSubmitResult',

@@ -52,6 +52,7 @@ vi.mock('../../gh/prDetector', () => ({
 
 vi.mock('../../gh/commentFetcher', () => ({
   fetchComments: vi.fn(),
+  fetchPendingReviewComments: vi.fn(),
   fetchCurrentUser: vi.fn(),
 }));
 
@@ -70,7 +71,7 @@ import { execFile } from 'child_process';
 import { CommentHandler } from '../../gh/commentHandler';
 import { isGhAvailable, isGhAuthenticated } from '../../gh/ghCli';
 import { detectPr, openPrInBrowser } from '../../gh/prDetector';
-import { fetchComments, fetchCurrentUser } from '../../gh/commentFetcher';
+import { fetchComments, fetchPendingReviewComments, fetchCurrentUser } from '../../gh/commentFetcher';
 import { submitReviewBatch, getLatestCommitSha } from '../../gh/commentPoster';
 import { fetchDiff, parseDiffForFile, validateMultiLineMapping } from '../../gh/diffLineMapper';
 import type { PrInfo, LineMapping, PendingComment } from '../../sync/commentTypes';
@@ -191,6 +192,7 @@ function setupHappyPath(prInfo?: PrInfo, mapping?: LineMapping) {
   vi.mocked(fetchCurrentUser).mockResolvedValue('testuser');
   vi.mocked(parseDiffForFile).mockReturnValue(lm);
   vi.mocked(fetchComments).mockResolvedValue([]);
+  vi.mocked(fetchPendingReviewComments).mockResolvedValue([]);
 }
 
 beforeEach(() => {
@@ -435,10 +437,12 @@ describe('CommentHandler', () => {
               createdAt: '2026-01-01T00:00:00Z',
               isOwn: false,
               isOutdated: false,
+              isPending: false,
             },
           ],
         },
       ]);
+      vi.mocked(fetchPendingReviewComments).mockResolvedValue([]);
 
       await handler.handleCommentRefresh();
 
@@ -550,6 +554,7 @@ describe('CommentHandler', () => {
       vi.mocked(validateMultiLineMapping).mockReturnValue({ diffLine: 5, diffStartLine: null });
       vi.mocked(submitReviewBatch).mockResolvedValue({ success: true });
       vi.mocked(fetchComments).mockResolvedValue([]);
+      vi.mocked(fetchPendingReviewComments).mockResolvedValue([]);
 
       const pending: PendingComment[] = [
         {
@@ -654,6 +659,7 @@ describe('CommentHandler', () => {
       vi.mocked(validateMultiLineMapping).mockReturnValue({ diffLine: 5, diffStartLine: null });
       vi.mocked(submitReviewBatch).mockResolvedValue({ success: true });
       vi.mocked(fetchComments).mockResolvedValue([]);
+      vi.mocked(fetchPendingReviewComments).mockResolvedValue([]);
 
       const pending: PendingComment[] = [
         {
@@ -739,6 +745,7 @@ describe('CommentHandler', () => {
       vi.mocked(fetchCurrentUser).mockResolvedValue('testuser');
       vi.mocked(parseDiffForFile).mockReturnValue(makeLineMapping());
       vi.mocked(fetchComments).mockResolvedValue([]);
+      vi.mocked(fetchPendingReviewComments).mockResolvedValue([]);
 
       await handler.handleCommentToggle({ type: 'commentToggle', enabled: true });
 

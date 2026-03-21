@@ -14,6 +14,7 @@ export interface CommentData {
   createdAt: string;
   isOwn: boolean;
   isOutdated: boolean;
+  isPending: boolean;
 }
 
 export interface CommentThread {

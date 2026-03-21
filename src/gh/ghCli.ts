@@ -36,9 +36,10 @@ export type GhErrorCategory =
 export async function execGh(
   args: string[],
   cwd: string,
+  stdinData?: string,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile('gh', args, { cwd }, (error, stdout, stderr) => {
+    const child = execFile('gh', args, { cwd }, (error, stdout, stderr) => {
       if (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
           reject(new GhNotFoundError());
@@ -50,6 +51,11 @@ export async function execGh(
       }
       resolve({ stdout, stderr });
     });
+
+    if (stdinData && child.stdin) {
+      child.stdin.write(stdinData);
+      child.stdin.end();
+    }
   });
 }
 

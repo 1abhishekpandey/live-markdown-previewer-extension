@@ -94,7 +94,7 @@ describe('CommentToggle', () => {
     expect(vscode.postMessage).toHaveBeenCalledWith({ type: 'commentToggle', enabled: true });
   });
 
-  it('handleCommentData updates button text to "Review: ON PR #123"', () => {
+  it('handleCommentData updates button text to "Review: On"', () => {
     const vscode = makeVscode();
     const editor = makeEditor();
     const store = makeStore();
@@ -103,8 +103,9 @@ describe('CommentToggle', () => {
     toggle.handleCommentData(makeCommentDataMsg({ prNumber: 123 }));
 
     const toggleBtn = document.querySelector('.review-toggle') as HTMLButtonElement;
-    expect(toggleBtn.textContent).toContain('Review: ON');
-    expect(toggleBtn.textContent).toContain('PR #123');
+    expect(toggleBtn.textContent).toBe('Review: On');
+    const prBadge = document.querySelector('.review-pr-badge') as HTMLSpanElement;
+    expect(prBadge.textContent).toBe('PR #123');
   });
 
   it('handleCommentData sets editor to read-only (setEditable false)', () => {
@@ -115,25 +116,21 @@ describe('CommentToggle', () => {
 
     toggle.handleCommentData(makeCommentDataMsg());
 
-    expect(editor.setEditable).toHaveBeenCalledWith(false);
+    expect(editor.setEditable).toHaveBeenCalledWith(false, false);
   });
 
-  it('handleCommentData shows refresh and staleness', () => {
+  it('handleCommentData shows review bar', () => {
     const vscode = makeVscode();
     const editor = makeEditor();
     const store = makeStore();
     toggle = new CommentToggle(editor, vscode, store);
 
-    const refreshBtn = document.querySelector('.review-refresh') as HTMLButtonElement;
-    const stalenessEl = document.querySelector('.review-staleness') as HTMLSpanElement;
-
-    expect(refreshBtn.style.display).toBe('none');
-    expect(stalenessEl.style.display).toBe('none');
+    const reviewBar = document.querySelector('.review-bar') as HTMLDivElement;
+    expect(reviewBar.style.display).toBe('none');
 
     toggle.handleCommentData(makeCommentDataMsg());
 
-    expect(refreshBtn.style.display).toBe('');
-    expect(stalenessEl.style.display).toBe('');
+    expect(reviewBar.style.display).toBe('');
   });
 
   it('refresh click sends commentRefresh', () => {
@@ -165,7 +162,7 @@ describe('CommentToggle', () => {
     expect(submitBtn.style.display).toBe('');
   });
 
-  it('submit button hidden when count is 0', () => {
+  it('actions row hidden when count is 0', () => {
     const vscode = makeVscode();
     const editor = makeEditor();
     const store = makeStore(0);
@@ -173,23 +170,24 @@ describe('CommentToggle', () => {
 
     toggle.handleCommentData(makeCommentDataMsg());
 
-    const submitBtn = document.querySelector('.review-submit') as HTMLButtonElement;
-    expect(submitBtn.style.display).toBe('none');
+    const actionsRow = document.querySelector('.review-actions-row') as HTMLDivElement;
+    expect(actionsRow.style.display).toBe('none');
   });
 
-  it('submit click shows confirmation text', () => {
+  it('submit click sends submitReview immediately', () => {
     const vscode = makeVscode();
     const editor = makeEditor();
     const store = makeStore(2);
     toggle = new CommentToggle(editor, vscode, store);
 
-    toggle.handleCommentData(makeCommentDataMsg({ prNumber: 42 }));
+    toggle.handleCommentData(makeCommentDataMsg());
 
     const submitBtn = document.querySelector('.review-submit') as HTMLButtonElement;
     submitBtn.click();
 
-    expect(submitBtn.textContent).toBe('Submit 2 comments to PR #42?');
-    expect(submitBtn.dataset.confirming).toBe('true');
+    expect(submitBtn.textContent).toBe('Submitting...');
+    expect(submitBtn.disabled).toBe(true);
+    expect(vscode.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'submitReview' }));
   });
 
   it('handleSubmitResult success shows checkmark, reverts after timeout', () => {
@@ -225,15 +223,21 @@ describe('CommentToggle', () => {
     const msg: ReviewSubmitResultMessage = { type: 'reviewSubmitResult', success: false, error: 'Rate limited' };
     toggle.handleSubmitResult(msg);
 
-    const submitBtn = document.querySelector('.review-submit') as HTMLButtonElement;
-    expect(submitBtn.textContent).toBe('✗ Rate limited');
+    // Error shown in the review-error element, not the submit button
+    const errorEl = document.querySelector('.review-error') as HTMLSpanElement;
+    expect(errorEl.textContent).toBe('Rate limited');
+    expect(errorEl.style.display).toBe('');
 
-    vi.advanceTimersByTime(3000);
+    // Submit button reverts to idle
+    const submitBtn = document.querySelector('.review-submit') as HTMLButtonElement;
     expect(submitBtn.textContent).toBe('Submit Review (1)');
+
+    vi.advanceTimersByTime(8000);
+    expect(errorEl.style.display).toBe('none');
     vi.useRealTimers();
   });
 
-  it('handleError adds error class and tooltip', () => {
+  it('handleError shows error text in review bar', () => {
     vi.useFakeTimers();
     const vscode = makeVscode();
     const editor = makeEditor();
@@ -243,13 +247,12 @@ describe('CommentToggle', () => {
     const msg: CommentErrorMessage = { type: 'commentError', message: 'No PR found' };
     toggle.handleError(msg);
 
-    const toggleBtn = document.querySelector('.review-toggle') as HTMLButtonElement;
-    expect(toggleBtn.classList.contains('error')).toBe(true);
-    expect(toggleBtn.title).toBe('No PR found');
+    const errorEl = document.querySelector('.review-error') as HTMLSpanElement;
+    expect(errorEl.textContent).toBe('No PR found');
+    expect(errorEl.style.display).toBe('');
 
-    vi.advanceTimersByTime(5000);
-    expect(toggleBtn.classList.contains('error')).toBe(false);
-    expect(toggleBtn.title).toBe('');
+    vi.advanceTimersByTime(8000);
+    expect(errorEl.style.display).toBe('none');
     vi.useRealTimers();
   });
 
@@ -268,15 +271,11 @@ describe('CommentToggle', () => {
     toggleBtn.click();
 
     expect(vscode.postMessage).toHaveBeenCalledWith({ type: 'commentToggle', enabled: false });
-    expect(editor.setEditable).toHaveBeenCalledWith(true);
-    expect(toggleBtn.textContent).toBe('Review');
+    expect(editor.setEditable).toHaveBeenCalledWith(true, false);
+    expect(toggleBtn.textContent).toBe('Review: Off');
 
-    const refreshBtn = document.querySelector('.review-refresh') as HTMLButtonElement;
-    const submitBtn = document.querySelector('.review-submit') as HTMLButtonElement;
-    const stalenessEl = document.querySelector('.review-staleness') as HTMLSpanElement;
-    expect(refreshBtn.style.display).toBe('none');
-    expect(submitBtn.style.display).toBe('none');
-    expect(stalenessEl.style.display).toBe('none');
+    const reviewBar = document.querySelector('.review-bar') as HTMLDivElement;
+    expect(reviewBar.style.display).toBe('none');
   });
 
   it('staleness shows "just now" for recent fetch', () => {
@@ -288,7 +287,7 @@ describe('CommentToggle', () => {
     toggle.handleCommentData(makeCommentDataMsg({ lastFetchedAt: Date.now() }));
 
     const stalenessEl = document.querySelector('.review-staleness') as HTMLSpanElement;
-    expect(stalenessEl.textContent).toBe('Last refreshed just now');
+    expect(stalenessEl.textContent).toBe('just now');
   });
 
   it('dispose clears interval and unsubscribes', () => {

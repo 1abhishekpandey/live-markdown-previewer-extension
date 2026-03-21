@@ -216,7 +216,7 @@ describe('commentIndicator plugin', () => {
       expect(highlights[0]).toEqual(expect.objectContaining({ from: 20, to: 30 }));
     });
 
-    it('creates comment-badge widget with correct count', () => {
+    it('stores comment count in data-comment-count attribute', () => {
       activePosLookup.set(4, 20);
       const nodesByPos = new Map<number, FakeNode>();
       nodesByPos.set(20, { nodeSize: 10 });
@@ -236,14 +236,10 @@ describe('commentIndicator plugin', () => {
         doc,
       );
 
-      const widgets = createdDecorations.filter(d => d.type === 'widget');
-      expect(widgets).toHaveLength(1);
-
-      // Invoke the widget factory to inspect the DOM element
-      const badge = widgets[0].widgetFn!();
-      expect(badge.className).toBe('comment-badge');
-      expect(badge.textContent).toBe('2');
-      expect(badge.dataset.line).toBe('5');
+      const highlights = createdDecorations.filter(d => d.type === 'node' && (d.spec as any)?.class === 'comment-highlight');
+      expect(highlights).toHaveLength(1);
+      expect((highlights[0].spec as any)['data-comment-count']).toBe('2');
+      expect((highlights[0].spec as any)['data-thread-id']).toBe('100');
     });
 
     it('shows combined count when thread has pending comments', () => {
@@ -260,16 +256,15 @@ describe('commentIndicator plugin', () => {
         doc,
       );
 
-      const widgets = createdDecorations.filter(d => d.type === 'widget');
-      expect(widgets).toHaveLength(1);
-      const badge = widgets[0].widgetFn!();
+      const highlights = createdDecorations.filter(d => d.type === 'node' && (d.spec as any)?.class === 'comment-highlight');
+      expect(highlights).toHaveLength(1);
       // 1 existing comment + 1 pending = "1+1"
-      expect(badge.textContent).toBe('1+1');
+      expect((highlights[0].spec as any)['data-comment-count']).toBe('1+1');
     });
   });
 
   describe('pending-only comment decorations', () => {
-    it('creates comment-highlight-pending for pending-only lines', () => {
+    it('creates comment-highlight-pending for pending-only lines with data attributes', () => {
       // workingCopyLine 8 (1-indexed) → 0-indexed 7 → pos 40
       activePosLookup.set(7, 40);
       const nodesByPos = new Map<number, FakeNode>();
@@ -287,12 +282,8 @@ describe('commentIndicator plugin', () => {
       );
       expect(pendingHighlights).toHaveLength(1);
       expect(pendingHighlights[0]).toEqual(expect.objectContaining({ from: 40, to: 46 }));
-
-      const widgets = createdDecorations.filter(d => d.type === 'widget');
-      expect(widgets).toHaveLength(1);
-      const badge = widgets[0].widgetFn!();
-      expect(badge.className).toBe('comment-badge pending');
-      expect(badge.textContent).toBe('+1');
+      expect((pendingHighlights[0].spec as any)['data-pending-count']).toBe('1');
+      expect((pendingHighlights[0].spec as any)['data-pending-line']).toBe('8');
     });
 
     it('skips pending decoration when thread already exists on same line', () => {
@@ -317,8 +308,8 @@ describe('commentIndicator plugin', () => {
     });
   });
 
-  describe('badge click event', () => {
-    it('dispatches comment-badge-click custom event on click', () => {
+  describe('thread data attributes for click handling', () => {
+    it('stores thread-id and thread-line in node decoration for click handling', () => {
       activePosLookup.set(4, 20);
       const nodesByPos = new Map<number, FakeNode>();
       nodesByPos.set(20, { nodeSize: 10 });
@@ -330,17 +321,10 @@ describe('commentIndicator plugin', () => {
         doc,
       );
 
-      const widgets = createdDecorations.filter(d => d.type === 'widget');
-      const badge = widgets[0].widgetFn!();
-
-      let receivedDetail: any = null;
-      document.addEventListener('comment-badge-click', ((e: CustomEvent) => {
-        receivedDetail = e.detail;
-      }) as EventListener, { once: true });
-
-      badge.click();
-
-      expect(receivedDetail).toEqual({ threadId: 42, line: 5 });
+      const highlights = createdDecorations.filter(d => d.type === 'node' && (d.spec as any)?.class === 'comment-highlight');
+      expect(highlights).toHaveLength(1);
+      expect((highlights[0].spec as any)['data-thread-id']).toBe('42');
+      expect((highlights[0].spec as any)['data-thread-line']).toBe('5');
     });
   });
 });
