@@ -46,6 +46,17 @@ Toggle long-line wrapping in code blocks with the "Wrap: On/Off" button (bottom-
 
 All colours derive from VS Code CSS variables (`var(--vscode-*)`), so the editor follows light, dark, and high-contrast themes automatically.
 
+# PR Review Comments
+
+Review GitHub pull request comments directly in the editor — no need to switch to the browser.
+
+- **Review mode** — toggle on to see diff highlights (green background on changed lines) and existing PR comments
+- **View comments** — click the 💬 badge on a commented line to see the thread
+- **Add comments** — click the `+` on any highlighted line, or select text across multiple lines to comment on a range
+- **Batch submission** — comments are queued locally and posted as a draft review (no notifications until you publish on GitHub)
+- **Discard** — remove individual pending comments or discard all at once
+- **Requires `gh` CLI** — all GitHub communication goes through the [GitHub CLI](https://cli.github.com) (must be installed and authenticated)
+
 # Read-Only Support
 
 Git diff views and other non-writable documents display a "Read-only" banner with editing and shortcuts disabled.

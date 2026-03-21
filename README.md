@@ -23,6 +23,7 @@ When you open a `.md` file for the first time, click the **"Toggle raw markdown"
 - **Link insertion** — `Cmd+K` overlay for quick link creation
 - **Copy mode toggle** — copy as raw Markdown or rendered rich text
 - **GFM alert callouts** — `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, and `[!CAUTION]` blocks with distinct colours and icons
+- **PR review comments** — view, reply, and create GitHub PR comments inline with batch draft submission (requires [`gh` CLI](https://cli.github.com))
 - **Real-time sync** — edits from other extensions or external tools appear instantly
 
 ## How it Works
