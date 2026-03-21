@@ -20,6 +20,7 @@ function makeEditor() {
       setTextSelection,
     },
     setEditable,
+    isEditable: true,
     storage: { markdown: { getMarkdown } },
     state: {
       doc: {

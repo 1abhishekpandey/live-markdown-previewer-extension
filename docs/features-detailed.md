@@ -274,3 +274,82 @@ font-src {webview-csp-source};
 # Panel Re-sync
 
 When a webview panel becomes visible after being hidden (e.g., switching tabs), the extension re-sends the full document content with `version: 0`, forcing the webview to reload the latest state. This handles cases where external edits occurred while the panel was in the background.
+
+---
+
+# PR Review Comments
+
+Review GitHub pull request comments inline without leaving VS Code. Requires the [GitHub CLI (`gh`)](https://cli.github.com) to be installed and authenticated.
+
+## Enabling Review Mode
+
+Click **Review: Off** in the toolbar to toggle review mode on. The extension:
+
+1. Checks for uncommitted or unpushed changes — blocks review if the file is dirty
+2. Detects the open PR for the current branch via `gh pr view`
+3. Fetches the PR diff and review comments in parallel
+4. Highlights changed lines with a green background and displays existing comments
+
+The editor becomes read-only while review mode is active. Click **Review: On** to toggle off and resume editing.
+
+## Review Toolbar
+
+When review mode is active, a second row appears below the main toolbar:
+
+- **PR #N** — click to open the PR on GitHub
+- **Refresh ↻** — re-fetch comments and diff from GitHub
+- **Staleness indicator** — shows time since last refresh (e.g., "5 min ago")
+- **Submit Review (N)** — posts all queued comments as a draft review
+- **Discard All** — removes all pending comments
+
+## Viewing Comments
+
+Lines with existing PR comments show a 💬 badge with the comment count at the right edge. Click the badge to open the comment thread in a floating panel. The panel shows:
+
+- Author and relative timestamp for each comment
+- **Outdated** label for comments where the code has changed since posting
+- Reply textarea for adding threaded replies
+
+## Creating Comments
+
+Two ways to add a comment on changed lines:
+
+- **Single line** — hover over a highlighted line and click the `+` button at the right edge
+- **Multi-line** — select text across multiple highlighted lines; a floating `+` button appears at the last selected line
+
+Clicking `+` opens a comment panel. Type your comment and click **Queue** to add it to the pending batch. Pending comments are shown with an amber background and dashed border.
+
+Only one pending comment is allowed per line (or line range). To change a pending comment, discard it and add a new one.
+
+## Submitting Comments
+
+Click **Submit Review (N)** to post all queued comments to GitHub as a **draft review** (using the `PENDING` event). Draft reviews:
+
+- Are visible only to you on GitHub until you publish them
+- Do not send notifications to other reviewers
+- Can be published, edited, or discarded from GitHub's web UI
+
+## Replying to Existing Threads
+
+Click a 💬 badge to open an existing thread. The reply textarea at the bottom lets you add replies. Replies are queued and posted alongside new comments when you submit.
+
+## Error Handling
+
+Errors are displayed as red text below the toolbar. Common errors:
+
+| Error | Cause |
+| --- | --- |
+| "GitHub CLI (gh) is not installed" | `gh` not found on PATH |
+| "GitHub CLI is not authenticated" | Run `gh auth login` first |
+| "No open PR found for this branch" | The branch has no open pull request |
+| "This file has local changes..." | Commit and push before enabling review |
+| "This file has no changes in PR #N" | The file is not part of the PR diff |
+
+## Limitations
+
+- Comments can only be added on lines changed in the PR (highlighted green)
+- Only one comment per line (or line range) — multiple separate comments on the same line are not supported. May be added in future if needed.
+- Only the current file's comments are shown — no cross-file navigation
+- Comment editing and deletion must be done on GitHub (refresh to sync)
+- Single PR per branch (most recent if multiple exist)
+- GitHub only — no GitLab, Bitbucket, or Azure DevOps support
