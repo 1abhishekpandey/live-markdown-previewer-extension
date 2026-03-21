@@ -105,8 +105,8 @@ function buildDecorations(doc: PmNode, state: CommentIndicatorState): Decoration
     );
   }
 
-  // Comment highlight decorations + badge widgets.
-  // workingCopyLine on threads is also 1-indexed — subtract 1 for lineMap lookup.
+  // Comment highlight decorations for existing threads.
+  // Uses node decoration with data attributes + ::after for the badge (no widget decoration).
   for (const thread of threads) {
     const line0 = thread.workingCopyLine - 1;
     const pos = findPosForLine(lineMap, line0);
@@ -114,32 +114,17 @@ function buildDecorations(doc: PmNode, state: CommentIndicatorState): Decoration
     const node = doc.nodeAt(pos);
     if (!node) continue;
 
-    decorations.push(
-      Decoration.node(pos, pos + node.nodeSize, {
-        class: 'comment-highlight',
-      }),
-    );
-
     const count = thread.comments.length;
     const pendingCount = pendingCounts.get(thread.workingCopyLine) || 0;
     const badgeText = pendingCount > 0 ? `${count}+${pendingCount}` : `${count}`;
 
     decorations.push(
-      Decoration.widget(pos + node.nodeSize, () => {
-        const badge = document.createElement('span');
-        badge.className = 'comment-badge';
-        badge.textContent = badgeText;
-        badge.dataset.line = String(thread.workingCopyLine);
-        badge.addEventListener('click', (e) => {
-          e.stopPropagation();
-          document.dispatchEvent(
-            new CustomEvent('comment-badge-click', {
-              detail: { threadId: thread.id, line: thread.workingCopyLine },
-            }),
-          );
-        });
-        return badge;
-      }, { side: 1 }),
+      Decoration.node(pos, pos + node.nodeSize, {
+        class: 'comment-highlight',
+        'data-comment-count': badgeText,
+        'data-thread-id': String(thread.id),
+        'data-thread-line': String(thread.workingCopyLine),
+      }),
     );
   }
 

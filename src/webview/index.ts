@@ -295,11 +295,26 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
     }
   }
 
-  // Otherwise: "+" button on diff-highlighted lines (no pending comment on this line)
+  // Check if clicking an existing thread badge → open thread panel
+  const threadLine = target.closest('.comment-highlight[data-thread-id]') as HTMLElement | null;
+  if (threadLine) {
+    const rect = threadLine.getBoundingClientRect();
+    if (e.clientX >= rect.right - 60) {
+      const threadId = Number(threadLine.dataset.threadId);
+      const thread = lastThreads.find(t => t.id === threadId);
+      if (thread) {
+        e.stopPropagation();
+        e.preventDefault();
+        commentPanel.openThread(thread, threadLine);
+        return;
+      }
+    }
+  }
+
+  // Otherwise: "+" button on diff-highlighted lines (no existing comment or pending)
   const diffLine = target.closest('.diff-highlight') as HTMLElement | null;
   if (!diffLine) return;
-  // Skip if this line already has a pending comment
-  if (diffLine.dataset.pendingCount) return;
+  if (diffLine.dataset.pendingCount || diffLine.dataset.commentCount) return;
 
   const rect = diffLine.getBoundingClientRect();
   if (e.clientX < rect.right - 38) return;
