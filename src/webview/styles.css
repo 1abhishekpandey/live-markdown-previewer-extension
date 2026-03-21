@@ -176,7 +176,7 @@ html, body {
 .copy-mode-toggle {
   position: fixed;
   top: 8px;
-  right: 82px;
+  right: 80px;
   z-index: 100;
   background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
   color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
@@ -559,8 +559,8 @@ html, body {
   transition: opacity 0.15s;
 }
 
-.review-toggle { top: 8px; right: 170px; }
-.review-refresh { top: 8px; right: 110px; }
+.review-toggle { top: 8px; right: 240px; }
+.review-refresh { top: 8px; right: 170px; }
 .review-submit {
   top: 8px;
   right: 10px;
@@ -585,7 +585,7 @@ html, body {
 .review-staleness {
   position: fixed;
   top: 28px;
-  right: 110px;
+  right: 170px;
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
   z-index: 100;
