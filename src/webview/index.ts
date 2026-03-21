@@ -174,10 +174,25 @@ document.addEventListener('comment-badge-click', ((e: CustomEvent) => {
   commentPanel.openThread(thread, badge);
 }) as EventListener);
 
-// Wire "+" button click to open new comment panel
-document.addEventListener('comment-new-click', ((e: CustomEvent) => {
-  const { line, startLine, anchor } = e.detail as { line: number; startLine: number | null; anchor?: HTMLElement };
-  commentPanel.openNew(line, startLine, anchor ?? editorElement);
-}) as EventListener);
+// Wire "+" button click on diff-highlighted lines
+editorElement.addEventListener('click', (e: MouseEvent) => {
+  const target = e.target as HTMLElement;
+  // Find the closest diff-highlight element
+  const diffLine = target.closest('.diff-highlight') as HTMLElement | null;
+  if (!diffLine) return;
+
+  // Check if click was on the right edge (the ::after pseudo-element region)
+  const rect = diffLine.getBoundingClientRect();
+  const clickX = e.clientX;
+  // "+" button is positioned at right: 8px, width 22px, so clickable zone is last ~38px
+  if (clickX < rect.right - 38) return;
+
+  const lineNum = diffLine.dataset.diffLine;
+  if (!lineNum) return;
+
+  e.stopPropagation();
+  e.preventDefault();
+  commentPanel.openNew(Number(lineNum), null, diffLine);
+});
 
 syncClient.init();

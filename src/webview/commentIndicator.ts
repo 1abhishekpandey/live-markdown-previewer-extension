@@ -100,30 +100,9 @@ function buildDecorations(doc: PmNode, state: CommentIndicatorState): Decoration
     decorations.push(
       Decoration.node(pos, pos + node.nodeSize, {
         class: 'diff-highlight',
+        'data-diff-line': String(line1),
       }),
     );
-
-    // "+" button widget — real clickable element (CSS pseudo-elements don't receive events)
-    if (!commentedLines.has(line1)) {
-      decorations.push(
-        Decoration.widget(pos + node.nodeSize, () => {
-          const btn = document.createElement('button');
-          btn.className = 'diff-add-comment-btn';
-          btn.textContent = '+';
-          btn.title = 'Add comment';
-          btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            document.dispatchEvent(
-              new CustomEvent('comment-new-click', {
-                detail: { line: line1, startLine: null, anchor: btn },
-              }),
-            );
-          });
-          return btn;
-        }, { side: 1 }),
-      );
-    }
   }
 
   // Comment highlight decorations + badge widgets.
