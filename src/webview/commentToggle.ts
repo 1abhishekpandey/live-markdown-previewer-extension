@@ -12,7 +12,6 @@ export class CommentToggle {
   private store: PendingCommentStore;
 
   private reviewActive = false;
-  private prNumber: number | null = null;
   private prUrl: string | null = null;
   private lastFetchedAt: number | null = null;
   private stalenessInterval: ReturnType<typeof setInterval> | null = null;
@@ -137,17 +136,11 @@ export class CommentToggle {
   }
 
   private onSubmitClick(): void {
-    if (this.submitState === 'idle') {
-      this.submitState = 'confirming';
-      this.submitBtn.textContent = `Submit ${this.store.getCount()} comments to PR #${this.prNumber}?`;
-      this.submitBtn.dataset.confirming = 'true';
-    } else if (this.submitState === 'confirming') {
-      // Confirm click
-      this.submitState = 'loading';
-      this.submitBtn.disabled = true;
-      this.submitBtn.textContent = 'Submitting...';
-      this.vscode.postMessage({ type: 'submitReview', pending: this.store.getAll() });
-    }
+    if (this.submitState !== 'idle') return;
+    this.submitState = 'loading';
+    this.submitBtn.disabled = true;
+    this.submitBtn.textContent = 'Submitting...';
+    this.vscode.postMessage({ type: 'submitReview', pending: this.store.getAll() });
   }
 
   cancelSubmit(): void {
@@ -158,7 +151,7 @@ export class CommentToggle {
   /** Called when extension sends commentData (toggle ON success or refresh) */
   handleCommentData(msg: CommentDataMessage): void {
     this.reviewActive = true;
-    this.prNumber = msg.prNumber;
+
     this.prUrl = msg.prUrl;
     this.lastFetchedAt = msg.lastFetchedAt;
 
@@ -273,7 +266,6 @@ export class CommentToggle {
     this.toggleBtn.classList.remove('loading', 'error');
     this.reviewBarEl.style.display = 'none';
     this.actionsRow.style.display = 'none';
-    this.prNumber = null;
     this.prUrl = null;
     this.lastFetchedAt = null;
     this.submitState = 'idle';
