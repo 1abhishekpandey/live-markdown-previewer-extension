@@ -2,7 +2,13 @@ import './styles.css';
 import { createEditor } from './editor';
 import { SyncClient } from './syncClient';
 import { setCopyMode } from './copyToolbar';
-import type { ExtensionToWebviewMessage } from '../sync/syncProtocol';
+import { PendingCommentStore } from './pendingCommentStore';
+import { CommentToggle } from './commentToggle';
+import { CommentPanel } from './commentPanel';
+import { createCommentIndicatorPlugin, updateCommentIndicatorState, getCommentIndicatorState } from './commentIndicator';
+import { buildLineMap } from './lineMap';
+import type { ExtensionToWebviewMessage, CommentDataMessage, ReviewSubmitResultMessage, CommentErrorMessage, LineMappingResultMessage, SavedPendingQueueMessage } from '../sync/syncProtocol';
+import type { CommentThread } from '../sync/commentTypes';
 
 declare function acquireVsCodeApi(): {
   postMessage(message: unknown): void;
@@ -35,6 +41,66 @@ window.addEventListener('message', (event: MessageEvent) => {
     // Debug overlay hidden — logic retained in syncClient.updateDebugOverlay
     return;
   }
+
+  // Comment system message routing
+  if (data.type === 'commentData') {
+    const msg = data as CommentDataMessage;
+    commentToggle.handleCommentData(msg);
+    lastThreads = msg.threads;
+
+    // Build line map for position lookups
+    const md = (editor.storage as any).markdown?.parser?.md;
+    const markdown = editor.storage.markdown.getMarkdown();
+    const lineMap = md ? buildLineMap(editor.state.doc, markdown, md) : null;
+
+    // Update indicator plugin state
+    updateCommentIndicatorState(editor.view, {
+      reviewMode: true,
+      diffHighlightLines: msg.diffHighlightLines,
+      threads: msg.threads,
+      pendingComments: pendingStore.getAll(),
+      lineMap,
+    });
+
+    // Refresh panel if open
+    commentPanel.refresh(msg.threads, pendingStore.getAll());
+    return;
+  }
+
+  if (data.type === 'reviewSubmitResult') {
+    const msg = data as ReviewSubmitResultMessage;
+    commentToggle.handleSubmitResult(msg);
+    if (msg.success) {
+      pendingStore.clear();
+    } else if (msg.failedReplyIds) {
+      pendingStore.clearSuccessful(msg.failedReplyIds);
+    }
+    return;
+  }
+
+  if (data.type === 'commentError') {
+    commentToggle.handleError(data as CommentErrorMessage);
+    return;
+  }
+
+  if (data.type === 'lineMappingResult') {
+    // Line validation response — update the pending comment's diffLine
+    const result = data as LineMappingResultMessage;
+    if (result.diffLine !== null) {
+      const pc = pendingStore.get(result.tempId);
+      if (pc) {
+        pendingStore.remove(pc.tempId);
+        pendingStore.add({ ...pc, diffLine: result.diffLine, diffStartLine: result.diffStartLine });
+      }
+    }
+    return;
+  }
+
+  if (data.type === 'savedPendingQueue') {
+    pendingStore.hydrate((data as SavedPendingQueueMessage).pending);
+    return;
+  }
+
   syncClient.handleMessage(data as ExtensionToWebviewMessage);
 });
 
@@ -74,5 +140,39 @@ copyToggle.addEventListener('click', () => {
   copyToggle.textContent = copyModeRaw ? 'Copy: Raw' : 'Copy: Rich';
   copyToggle.title = copyModeRaw ? 'Copy mode: Raw Markdown' : 'Copy mode: Rendered';
 });
+
+// Comment system
+const pendingStore = new PendingCommentStore(vscode);
+const commentToggle = new CommentToggle(editor, vscode, pendingStore);
+const commentPanel = new CommentPanel(editorElement, pendingStore, vscode);
+
+// Register ProseMirror plugin for comment indicators
+const commentPlugin = createCommentIndicatorPlugin();
+editor.registerPlugin(commentPlugin);
+
+// Track last received threads for badge click lookups
+let lastThreads: CommentThread[] = [];
+
+// Subscribe to pending store changes to keep indicator plugin in sync
+pendingStore.onChange(() => {
+  const currentState = getCommentIndicatorState(editor.view);
+  if (!currentState.reviewMode) return;
+  updateCommentIndicatorState(editor.view, {
+    ...currentState,
+    pendingComments: pendingStore.getAll(),
+  });
+});
+
+// Wire badge click events to open comment panel
+document.addEventListener('comment-badge-click', ((e: CustomEvent) => {
+  const { threadId, line } = e.detail as { threadId: number; line: number };
+  const thread = lastThreads.find(t => t.id === threadId);
+  if (!thread) return;
+
+  // Find the anchor element (the badge that was clicked)
+  const badge = document.querySelector(`.comment-badge[data-line="${line}"]`) as HTMLElement | null;
+  if (!badge) return;
+  commentPanel.openThread(thread, badge);
+}) as EventListener);
 
 syncClient.init();
