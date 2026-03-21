@@ -18,6 +18,8 @@ export class CommentToggle {
   private stalenessInterval: ReturnType<typeof setInterval> | null = null;
   private submitState: 'idle' | 'confirming' | 'loading' | 'success' | 'error' = 'idle';
 
+  private onDeactivateCallback: (() => void) | null = null;
+
   // DOM elements
   private toggleBtn: HTMLButtonElement;
   private refreshBtn: HTMLButtonElement;
@@ -81,8 +83,9 @@ export class CommentToggle {
       // Toggle OFF
       this.reviewActive = false;
       this.vscode.postMessage({ type: 'commentToggle', enabled: false });
-      this.editor.setEditable(true);
+      this.editor.setEditable(true, false);
       this.cleanup();
+      if (this.onDeactivateCallback) this.onDeactivateCallback();
     } else {
       // Toggle ON — request from extension
       this.toggleBtn.classList.add('loading');
@@ -135,7 +138,7 @@ export class CommentToggle {
     this.toggleBtn.appendChild(badge);
 
     // Set editor read-only (table cell selection already handled by capture-phase handler)
-    this.editor.setEditable(false);
+    this.editor.setEditable(false, false);
 
     // Show refresh + staleness
     this.refreshBtn.style.display = '';
@@ -182,6 +185,10 @@ export class CommentToggle {
 
   isActive(): boolean {
     return this.reviewActive;
+  }
+
+  onDeactivate(callback: () => void): void {
+    this.onDeactivateCallback = callback;
   }
 
   private updateSubmitButton(): void {

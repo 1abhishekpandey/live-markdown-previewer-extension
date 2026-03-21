@@ -153,6 +153,19 @@ editor.registerPlugin(commentPlugin);
 // Track last received threads for badge click lookups
 let lastThreads: CommentThread[] = [];
 
+// Clear decorations when review mode is toggled OFF
+commentToggle.onDeactivate(() => {
+  updateCommentIndicatorState(editor.view, {
+    reviewMode: false,
+    diffHighlightLines: [],
+    threads: [],
+    pendingComments: [],
+    lineMap: null,
+  });
+  lastThreads = [];
+  commentPanel.close();
+});
+
 // Subscribe to pending store changes to keep indicator plugin in sync
 pendingStore.onChange(() => {
   const currentState = getCommentIndicatorState(editor.view);
