@@ -636,6 +636,31 @@ html, body {
   opacity: 1;
 }
 
+/* Multi-line selection floating "+" button */
+.selection-comment-btn {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border: none;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s;
+}
+
+.selection-comment-btn:hover {
+  transform: scale(1.15);
+}
+
 /* Comment line highlights */
 .comment-highlight {
   background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 200, 0, 0.15));

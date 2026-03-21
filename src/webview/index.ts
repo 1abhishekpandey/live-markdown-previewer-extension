@@ -174,18 +174,15 @@ document.addEventListener('comment-badge-click', ((e: CustomEvent) => {
   commentPanel.openThread(thread, badge);
 }) as EventListener);
 
-// Wire "+" button click on diff-highlighted lines
+// Wire "+" button click on diff-highlighted lines (single-line, via ::after click zone)
 editorElement.addEventListener('click', (e: MouseEvent) => {
+  if (selectionBtn && selectionBtn.style.display !== 'none') return; // multi-line active
   const target = e.target as HTMLElement;
-  // Find the closest diff-highlight element
   const diffLine = target.closest('.diff-highlight') as HTMLElement | null;
   if (!diffLine) return;
 
-  // Check if click was on the right edge (the ::after pseudo-element region)
   const rect = diffLine.getBoundingClientRect();
-  const clickX = e.clientX;
-  // "+" button is positioned at right: 8px, width 22px, so clickable zone is last ~38px
-  if (clickX < rect.right - 38) return;
+  if (e.clientX < rect.right - 38) return;
 
   const lineNum = diffLine.dataset.diffLine;
   if (!lineNum) return;
@@ -193,6 +190,74 @@ editorElement.addEventListener('click', (e: MouseEvent) => {
   e.stopPropagation();
   e.preventDefault();
   commentPanel.openNew(Number(lineNum), null, diffLine);
+});
+
+// Multi-line selection: floating "+" button when selecting across multiple diff-highlighted lines
+const selectionBtn = document.createElement('button');
+selectionBtn.className = 'selection-comment-btn';
+selectionBtn.textContent = '+';
+selectionBtn.title = 'Comment on selected lines';
+selectionBtn.style.display = 'none';
+document.body.appendChild(selectionBtn);
+
+let selectionStartLine: number | null = null;
+let selectionEndLine: number | null = null;
+let selectionAnchor: HTMLElement | null = null;
+
+function updateSelectionButton(): void {
+  const state = getCommentIndicatorState(editor.view);
+  if (!state.reviewMode) {
+    selectionBtn.style.display = 'none';
+    return;
+  }
+
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+    selectionBtn.style.display = 'none';
+    return;
+  }
+
+  // Find all diff-highlighted blocks that overlap with the selection
+  const range = sel.getRangeAt(0);
+  const highlights = editorElement!.querySelectorAll('.diff-highlight[data-diff-line]');
+  const selectedLines: { line: number; el: HTMLElement }[] = [];
+
+  for (const el of Array.from(highlights) as HTMLElement[]) {
+    if (range.intersectsNode(el)) {
+      const line = Number(el.dataset.diffLine);
+      if (!isNaN(line)) selectedLines.push({ line, el });
+    }
+  }
+
+  // Need at least 2 highlighted lines in the selection for multi-line mode
+  if (selectedLines.length < 2) {
+    selectionBtn.style.display = 'none';
+    return;
+  }
+
+  // Sort by line number
+  selectedLines.sort((a, b) => a.line - b.line);
+  selectionStartLine = selectedLines[0].line;
+  selectionEndLine = selectedLines[selectedLines.length - 1].line;
+  selectionAnchor = selectedLines[selectedLines.length - 1].el;
+
+  // Position the button at the bottom-right of the last selected line
+  const lastRect = selectionAnchor.getBoundingClientRect();
+  selectionBtn.style.display = 'flex';
+  selectionBtn.style.top = `${lastRect.bottom - 24}px`;
+  selectionBtn.style.left = `${lastRect.right - 36}px`;
+}
+
+document.addEventListener('selectionchange', updateSelectionButton);
+
+selectionBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  if (selectionStartLine !== null && selectionEndLine !== null && selectionAnchor) {
+    commentPanel.openNew(selectionEndLine, selectionStartLine, selectionAnchor);
+    selectionBtn.style.display = 'none';
+    window.getSelection()?.removeAllRanges();
+  }
 });
 
 syncClient.init();
