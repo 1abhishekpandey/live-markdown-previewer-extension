@@ -15,7 +15,15 @@ function makeVscode() {
 }
 
 function makeEditor() {
-  return { setEditable: vi.fn() } as unknown as import('@tiptap/core').Editor;
+  const dom = document.createElement('div');
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(dom);
+  document.body.appendChild(wrapper);
+  return {
+    setEditable: vi.fn(),
+    isEditable: true,
+    view: { dom },
+  } as unknown as import('@tiptap/core').Editor;
 }
 
 function makeStore(count = 0): PendingCommentStore {
