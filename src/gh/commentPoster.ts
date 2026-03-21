@@ -61,12 +61,12 @@ async function addCommentToExistingReview(
     '-f', `query=${mutation}`,
     '-f', `reviewId=${reviewNodeId}`,
     '-f', `path=${filePath}`,
-    '-F', `line=${comment.diffLine}`,
+    '-F', `line=${comment.workingCopyLine}`,
     '-f', `body=${comment.body}`,
   ];
 
   if (hasStartLine) {
-    args.push('-F', `startLine=${comment.diffStartLine}`);
+    args.push('-F', `startLine=${comment.workingCopyStartLine}`);
   }
 
   await execGh(args, cwd);
@@ -181,12 +181,12 @@ export async function submitReviewBatch(
           comments: newComments.map(c => {
             const comment: Record<string, unknown> = {
               path: filePath,
-              line: c.diffLine,
+              line: c.workingCopyLine,
               side: 'RIGHT',
               body: c.body,
             };
-            if (c.diffStartLine != null) {
-              comment.start_line = c.diffStartLine;
+            if (c.workingCopyStartLine != null) {
+              comment.start_line = c.workingCopyStartLine;
               comment.start_side = 'RIGHT';
             }
             return comment;

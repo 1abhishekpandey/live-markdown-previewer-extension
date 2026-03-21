@@ -100,13 +100,19 @@ function parseHunks(section: string): LineMapping {
   let oldLine = 0;
   let newLine = 0;
   let inHunk = false;
+  let isFirstHunk = true;
 
   for (const line of lines) {
     const hunkHeader = parseHunkHeader(line);
     if (hunkHeader) {
       oldLine = hunkHeader.oldStart;
       newLine = hunkHeader.newStart;
-      diffPosition++;
+      // GitHub's position starts at 1 after the first @@ header (not counted).
+      // Subsequent @@ headers ARE counted as regular lines in the position.
+      if (!isFirstHunk) {
+        diffPosition++;
+      }
+      isFirstHunk = false;
       inHunk = true;
       continue;
     }

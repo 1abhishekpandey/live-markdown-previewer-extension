@@ -109,19 +109,20 @@ export async function fetchComments(
   const threads: CommentThread[] = [];
 
   for (const root of rootById.values()) {
-    const diffLine = root.line;
-    const diffStartLine = root.start_line ?? null;
-
-    const workingCopyLine = diffLine !== null
-      ? lineMapping.diffLineToWorkingCopy.get(diffLine) ?? null
-      : null;
-
+    // root.line is the file line number (side: RIGHT), not a diff position
+    const workingCopyLine = root.line ?? null;
     if (workingCopyLine === null) {
       continue;
     }
 
-    const workingCopyStartLine = diffStartLine !== null
-      ? lineMapping.diffLineToWorkingCopy.get(diffStartLine) ?? null
+    const diffLine = lineMapping.workingCopyToDiffLine.get(workingCopyLine) ?? null;
+    if (diffLine === null) {
+      continue;
+    }
+
+    const workingCopyStartLine = root.start_line ?? null;
+    const diffStartLine = workingCopyStartLine !== null
+      ? lineMapping.workingCopyToDiffLine.get(workingCopyStartLine) ?? null
       : null;
 
     const rootData = toCommentData(root, currentUser);
@@ -134,7 +135,7 @@ export async function fetchComments(
     threads.push({
       id: root.id,
       path: root.path,
-      diffLine: diffLine!,
+      diffLine,
       diffStartLine,
       workingCopyLine,
       workingCopyStartLine,
@@ -203,21 +204,31 @@ export async function fetchPendingReviewComments(
     const threads: CommentThread[] = [];
 
     for (const root of rootById.values()) {
-      // Pending comments have line: null and original_line: null.
-      // Fall back to position/original_position which is the diff position.
-      const diffLine = root.line ?? root.original_line ?? root.position ?? root.original_position;
-      const diffStartLine = root.start_line ?? null;
+      // root.line / root.original_line are file line numbers.
+      // root.position / root.original_position are diff positions.
+      // Pending comments may have line: null; fall back to position.
+      let workingCopyLine: number | null = null;
+      let diffLine: number | null = null;
 
-      const workingCopyLine = diffLine !== null
-        ? lineMapping.diffLineToWorkingCopy.get(diffLine) ?? null
-        : null;
+      const fileLine = root.line ?? root.original_line ?? null;
+      if (fileLine !== null) {
+        workingCopyLine = fileLine;
+        diffLine = lineMapping.workingCopyToDiffLine.get(fileLine) ?? null;
+      } else {
+        const pos = root.position ?? root.original_position ?? null;
+        if (pos !== null) {
+          diffLine = pos;
+          workingCopyLine = lineMapping.diffLineToWorkingCopy.get(pos) ?? null;
+        }
+      }
 
-      if (workingCopyLine === null) {
+      if (workingCopyLine === null || diffLine === null) {
         continue;
       }
 
-      const workingCopyStartLine = diffStartLine !== null
-        ? lineMapping.diffLineToWorkingCopy.get(diffStartLine) ?? null
+      const workingCopyStartLine = root.start_line ?? null;
+      const diffStartLine = workingCopyStartLine !== null
+        ? lineMapping.workingCopyToDiffLine.get(workingCopyStartLine) ?? null
         : null;
 
       const rootData = toCommentData(root, currentUser, true);
@@ -230,7 +241,7 @@ export async function fetchPendingReviewComments(
       threads.push({
         id: root.id,
         path: root.path,
-        diffLine: diffLine!,
+        diffLine,
         diffStartLine,
         workingCopyLine,
         workingCopyStartLine,

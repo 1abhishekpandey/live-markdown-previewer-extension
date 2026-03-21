@@ -77,8 +77,8 @@ describe('commentPoster', () => {
   describe('submitReviewBatch — new comments', () => {
     it('posts a batch review with PENDING event for new comments', async () => {
       stubSuccess();
-      const c1 = makeComment({ tempId: 'c1', body: 'Fix this typo', diffLine: 8 });
-      const c2 = makeComment({ tempId: 'c2', body: 'Rename variable', diffLine: 22 });
+      const c1 = makeComment({ tempId: 'c1', body: 'Fix this typo', workingCopyLine: 15, diffLine: 8 });
+      const c2 = makeComment({ tempId: 'c2', body: 'Rename variable', workingCopyLine: 30, diffLine: 22 });
 
       const result = await submitReviewBatch(pr, [c1, c2], [], 'sha1', 'src/file.md', '/tmp');
 
@@ -92,13 +92,13 @@ describe('commentPoster', () => {
       expect(stdinPayload.comments).toHaveLength(2);
       expect(stdinPayload.comments[0]).toEqual({
         path: 'src/file.md',
-        line: 8,
+        line: 15,
         side: 'RIGHT',
         body: 'Fix this typo',
       });
       expect(stdinPayload.comments[1]).toEqual({
         path: 'src/file.md',
-        line: 22,
+        line: 30,
         side: 'RIGHT',
         body: 'Rename variable',
       });
@@ -106,7 +106,13 @@ describe('commentPoster', () => {
 
     it('includes start_line and start_side for multi-line comments', async () => {
       stubSuccess();
-      const c = makeComment({ diffStartLine: 10, diffLine: 18, body: 'Multi-line comment' });
+      const c = makeComment({
+        workingCopyLine: 25,
+        workingCopyStartLine: 18,
+        diffStartLine: 10,
+        diffLine: 18,
+        body: 'Multi-line comment',
+      });
 
       const result = await submitReviewBatch(pr, [c], [], 'sha1', 'src/file.md', '/tmp');
 
@@ -115,10 +121,10 @@ describe('commentPoster', () => {
       const stdinPayload = JSON.parse(mockStdin.write.mock.calls[0][0]);
       expect(stdinPayload.comments[0]).toEqual({
         path: 'src/file.md',
-        line: 18,
+        line: 25,
         side: 'RIGHT',
         body: 'Multi-line comment',
-        start_line: 10,
+        start_line: 18,
         start_side: 'RIGHT',
       });
     });

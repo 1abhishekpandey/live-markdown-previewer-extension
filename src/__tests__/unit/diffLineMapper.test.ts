@@ -66,19 +66,19 @@ describe('parseDiffForFile', () => {
     expect(mapping.addedLines.map((l) => l.lineNumber)).toEqual([4, 5, 6]);
     expect(mapping.addedLines.every((l) => l.type === 'added')).toBe(true);
 
-    // Context lines mapped
-    expect(mapping.workingCopyToDiffLine.get(1)).toBe(2);
-    expect(mapping.workingCopyToDiffLine.get(2)).toBe(3);
-    expect(mapping.workingCopyToDiffLine.get(3)).toBe(4);
+    // Context lines mapped (first @@ not counted, positions start at 1)
+    expect(mapping.workingCopyToDiffLine.get(1)).toBe(1);
+    expect(mapping.workingCopyToDiffLine.get(2)).toBe(2);
+    expect(mapping.workingCopyToDiffLine.get(3)).toBe(3);
 
     // Added lines mapped
-    expect(mapping.workingCopyToDiffLine.get(4)).toBe(5);
-    expect(mapping.workingCopyToDiffLine.get(5)).toBe(6);
-    expect(mapping.workingCopyToDiffLine.get(6)).toBe(7);
+    expect(mapping.workingCopyToDiffLine.get(4)).toBe(4);
+    expect(mapping.workingCopyToDiffLine.get(5)).toBe(5);
+    expect(mapping.workingCopyToDiffLine.get(6)).toBe(6);
 
     // Reverse mapping
-    expect(mapping.diffLineToWorkingCopy.get(2)).toBe(1);
-    expect(mapping.diffLineToWorkingCopy.get(5)).toBe(4);
+    expect(mapping.diffLineToWorkingCopy.get(1)).toBe(1);
+    expect(mapping.diffLineToWorkingCopy.get(4)).toBe(4);
   });
 
   it('mixed additions and deletions', () => {
@@ -99,20 +99,20 @@ describe('parseDiffForFile', () => {
     const mapping = parseDiffForFile(diff, 'file.ts');
 
     // Context lines mapped (not in addedLines)
-    expect(mapping.workingCopyToDiffLine.get(5)).toBe(2);
-    expect(mapping.workingCopyToDiffLine.get(6)).toBe(3);
+    expect(mapping.workingCopyToDiffLine.get(5)).toBe(1);
+    expect(mapping.workingCopyToDiffLine.get(6)).toBe(2);
 
-    // Deleted lines: diffPositions 4 and 5 are deletions, not in either map
+    // Deleted lines: diffPositions 3 and 4 are deletions, not in either map
+    expect(mapping.diffLineToWorkingCopy.has(3)).toBe(false);
     expect(mapping.diffLineToWorkingCopy.has(4)).toBe(false);
-    expect(mapping.diffLineToWorkingCopy.has(5)).toBe(false);
 
     // Added line mapped and in addedLines
-    expect(mapping.workingCopyToDiffLine.get(7)).toBe(6);
+    expect(mapping.workingCopyToDiffLine.get(7)).toBe(5);
     expect(mapping.addedLines).toContainEqual({ lineNumber: 7, type: 'added' });
 
     // Remaining context
-    expect(mapping.workingCopyToDiffLine.get(8)).toBe(7);
-    expect(mapping.workingCopyToDiffLine.get(9)).toBe(8);
+    expect(mapping.workingCopyToDiffLine.get(8)).toBe(6);
+    expect(mapping.workingCopyToDiffLine.get(9)).toBe(7);
 
     // addedLines should only have the replaced line
     expect(mapping.addedLines).toHaveLength(1);
@@ -137,17 +137,17 @@ describe('parseDiffForFile', () => {
 
     const mapping = parseDiffForFile(diff, 'multi.ts');
 
-    // First hunk: @@ header is pos 1, lines are 2-5
-    expect(mapping.workingCopyToDiffLine.get(1)).toBe(2); // context
-    expect(mapping.workingCopyToDiffLine.get(2)).toBe(3); // added
-    expect(mapping.workingCopyToDiffLine.get(3)).toBe(4); // context
-    expect(mapping.workingCopyToDiffLine.get(4)).toBe(5); // context
+    // First hunk: first @@ not counted, lines are 1-4
+    expect(mapping.workingCopyToDiffLine.get(1)).toBe(1); // context
+    expect(mapping.workingCopyToDiffLine.get(2)).toBe(2); // added
+    expect(mapping.workingCopyToDiffLine.get(3)).toBe(3); // context
+    expect(mapping.workingCopyToDiffLine.get(4)).toBe(4); // context
 
-    // Second hunk: @@ header is pos 6, lines are 7-10
-    expect(mapping.workingCopyToDiffLine.get(11)).toBe(7); // context
-    expect(mapping.workingCopyToDiffLine.get(12)).toBe(8); // context
-    expect(mapping.workingCopyToDiffLine.get(13)).toBe(9); // added
-    expect(mapping.workingCopyToDiffLine.get(14)).toBe(10); // context
+    // Second hunk: @@ header IS counted as pos 5, lines are 6-9
+    expect(mapping.workingCopyToDiffLine.get(11)).toBe(6); // context
+    expect(mapping.workingCopyToDiffLine.get(12)).toBe(7); // context
+    expect(mapping.workingCopyToDiffLine.get(13)).toBe(8); // added
+    expect(mapping.workingCopyToDiffLine.get(14)).toBe(9); // context
 
     // addedLines from both hunks
     expect(mapping.addedLines).toHaveLength(2);
@@ -188,9 +188,9 @@ describe('parseDiffForFile', () => {
     const mapping = parseDiffForFile(diff, 'new-name.md');
     expect(mapping.addedLines).toHaveLength(1);
     expect(mapping.addedLines[0].lineNumber).toBe(2);
-    expect(mapping.workingCopyToDiffLine.get(1)).toBe(2);
-    expect(mapping.workingCopyToDiffLine.get(2)).toBe(3);
-    expect(mapping.workingCopyToDiffLine.get(3)).toBe(4);
+    expect(mapping.workingCopyToDiffLine.get(1)).toBe(1);
+    expect(mapping.workingCopyToDiffLine.get(2)).toBe(2);
+    expect(mapping.workingCopyToDiffLine.get(3)).toBe(3);
   });
 
   it('empty diff returns empty LineMapping', () => {
@@ -216,9 +216,9 @@ describe('parseDiffForFile', () => {
     const mapping = parseDiffForFile(diff, 'file.ts');
 
     // The backslash line should not affect positions
-    expect(mapping.workingCopyToDiffLine.get(1)).toBe(2); // context
-    expect(mapping.workingCopyToDiffLine.get(2)).toBe(4); // added (pos 3 is deletion)
-    expect(mapping.workingCopyToDiffLine.get(3)).toBe(5); // context
+    expect(mapping.workingCopyToDiffLine.get(1)).toBe(1); // context
+    expect(mapping.workingCopyToDiffLine.get(2)).toBe(3); // added (pos 2 is deletion)
+    expect(mapping.workingCopyToDiffLine.get(3)).toBe(4); // context
 
     expect(mapping.addedLines).toHaveLength(1);
     expect(mapping.addedLines[0].lineNumber).toBe(2);
@@ -228,22 +228,22 @@ describe('parseDiffForFile', () => {
 describe('validateLineMapping', () => {
   const mapping: LineMapping = {
     diffLineToWorkingCopy: new Map([
-      [2, 1],
-      [3, 2],
-      [4, 3],
+      [1, 1],
+      [2, 2],
+      [3, 3],
     ]),
     workingCopyToDiffLine: new Map([
-      [1, 2],
-      [2, 3],
-      [3, 4],
+      [1, 1],
+      [2, 2],
+      [3, 3],
     ]),
     addedLines: [],
   };
 
   it('returns diff line when workingCopyLine exists in mapping', () => {
-    expect(validateLineMapping(1, mapping)).toBe(2);
-    expect(validateLineMapping(2, mapping)).toBe(3);
-    expect(validateLineMapping(3, mapping)).toBe(4);
+    expect(validateLineMapping(1, mapping)).toBe(1);
+    expect(validateLineMapping(2, mapping)).toBe(2);
+    expect(validateLineMapping(3, mapping)).toBe(3);
   });
 
   it('returns null when workingCopyLine not in mapping', () => {
@@ -255,28 +255,28 @@ describe('validateLineMapping', () => {
 describe('validateMultiLineMapping', () => {
   const mapping: LineMapping = {
     diffLineToWorkingCopy: new Map([
-      [2, 5],
-      [3, 6],
-      [4, 7],
-      [5, 8],
+      [1, 5],
+      [2, 6],
+      [3, 7],
+      [4, 8],
     ]),
     workingCopyToDiffLine: new Map([
-      [5, 2],
-      [6, 3],
-      [7, 4],
-      [8, 5],
+      [5, 1],
+      [6, 2],
+      [7, 3],
+      [8, 4],
     ]),
     addedLines: [],
   };
 
   it('both end and start valid', () => {
     const result = validateMultiLineMapping(8, 5, mapping);
-    expect(result).toEqual({ diffLine: 5, diffStartLine: 2 });
+    expect(result).toEqual({ diffLine: 4, diffStartLine: 1 });
   });
 
   it('start unmappable falls back to single-line', () => {
     const result = validateMultiLineMapping(7, 99, mapping);
-    expect(result).toEqual({ diffLine: 4, diffStartLine: null });
+    expect(result).toEqual({ diffLine: 3, diffStartLine: null });
   });
 
   it('end unmappable returns both null', () => {
@@ -286,6 +286,6 @@ describe('validateMultiLineMapping', () => {
 
   it('single line (startLine null)', () => {
     const result = validateMultiLineMapping(6, null, mapping);
-    expect(result).toEqual({ diffLine: 3, diffStartLine: null });
+    expect(result).toEqual({ diffLine: 2, diffStartLine: null });
   });
 });
