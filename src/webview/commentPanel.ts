@@ -294,9 +294,18 @@ export class CommentPanel {
   private positionPanel(anchorEl: HTMLElement): void {
     if (!this.panelEl) return;
     const rect = anchorEl.getBoundingClientRect();
-    this.panelEl.style.position = 'absolute';
-    this.panelEl.style.top = `${rect.top + window.scrollY}px`;
-    this.panelEl.style.left = `${rect.right + 16}px`;
+    const panelWidth = 320; // matches CSS .comment-panel width
+    const viewportWidth = window.innerWidth;
+
+    // Position to the right of the editor content, or fall back to right-aligned in viewport
+    let left = rect.right + 16;
+    if (left + panelWidth > viewportWidth) {
+      left = viewportWidth - panelWidth - 16;
+    }
+
+    this.panelEl.style.position = 'fixed';
+    this.panelEl.style.top = `${Math.max(40, rect.top)}px`;
+    this.panelEl.style.left = `${left}px`;
   }
 
   private registerCloseHandlers(): void {

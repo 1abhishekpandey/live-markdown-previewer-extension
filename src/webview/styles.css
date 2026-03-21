@@ -547,20 +547,22 @@ html, body {
 .review-submit {
   position: fixed;
   z-index: 100;
-  padding: 2px 8px;
-  font-size: 12px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-family: var(--vscode-font-family, sans-serif);
-  border: 1px solid var(--vscode-button-border, transparent);
-  border-radius: 3px;
+  border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.3));
+  border-radius: 4px;
   cursor: pointer;
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  opacity: 0.6;
+  transition: opacity 0.15s;
 }
 
-.review-toggle { bottom: 8px; right: 200px; }
-.review-refresh { bottom: 8px; right: 130px; }
+.review-toggle { top: 8px; right: 170px; }
+.review-refresh { top: 8px; right: 110px; }
 .review-submit {
-  bottom: 8px;
+  top: 8px;
   right: 10px;
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
@@ -568,6 +570,7 @@ html, body {
 
 .review-toggle:hover,
 .review-refresh:hover {
+  opacity: 1;
   background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,0.35));
 }
 
@@ -581,8 +584,8 @@ html, body {
 
 .review-staleness {
   position: fixed;
-  bottom: 30px;
-  right: 130px;
+  top: 28px;
+  right: 110px;
   font-size: 11px;
   color: var(--vscode-descriptionForeground);
   z-index: 100;
@@ -595,34 +598,32 @@ html, body {
 
 /* Diff highlighting */
 .diff-highlight {
-  background: var(--vscode-diffEditor-insertedTextBackground, rgba(0, 180, 0, 0.15));
+  background: rgba(0, 180, 0, 0.08);
   position: relative;
 }
 
-/* "+" hover button on diff lines */
-.diff-highlight::after {
-  content: '+';
-  position: absolute;
-  right: -24px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 20px;
-  height: 20px;
-  display: flex;
+/* "+" button on diff lines — real clickable widget */
+.diff-add-comment-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
+  width: 20px;
+  height: 20px;
+  margin-left: 4px;
+  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,0.2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128,128,128,0.3));
   border-radius: 50%;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  opacity: 0;
+  opacity: 0.4;
   transition: opacity 0.15s;
-  z-index: 10;
+  vertical-align: middle;
 }
 
-.diff-highlight:hover::after {
+.diff-add-comment-btn:hover,
+.diff-add-comment-btn:focus {
   opacity: 1;
 }
 

@@ -169,10 +169,15 @@ document.addEventListener('comment-badge-click', ((e: CustomEvent) => {
   const thread = lastThreads.find(t => t.id === threadId);
   if (!thread) return;
 
-  // Find the anchor element (the badge that was clicked)
   const badge = document.querySelector(`.comment-badge[data-line="${line}"]`) as HTMLElement | null;
   if (!badge) return;
   commentPanel.openThread(thread, badge);
+}) as EventListener);
+
+// Wire "+" button click to open new comment panel
+document.addEventListener('comment-new-click', ((e: CustomEvent) => {
+  const { line, startLine, anchor } = e.detail as { line: number; startLine: number | null; anchor?: HTMLElement };
+  commentPanel.openNew(line, startLine, anchor ?? editorElement);
 }) as EventListener);
 
 syncClient.init();

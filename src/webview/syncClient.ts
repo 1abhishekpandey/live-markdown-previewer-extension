@@ -172,7 +172,9 @@ export class SyncClient {
         if (msg.documentDirUri) {
           this.editor.storage.localImage.documentDirUri = msg.documentDirUri;
         }
+        this.isExternalUpdate = true;
         this.editor.commands.setContent(msg.markdown);
+        this.isExternalUpdate = false;
         this.setAdaptiveDebounce(msg.markdown.length);
         if (msg.isReadOnly) {
           this.isReadOnly = true;
@@ -325,12 +327,13 @@ export class SyncClient {
   }
 
   private debouncedSendEdit(): void {
-    if (this.isReadOnly) return;
+    if (this.isReadOnly || !this.editor.isEditable) return;
     if (this.debounceTimer !== null) {
       clearTimeout(this.debounceTimer);
     }
     this.debounceTimer = setTimeout(() => {
       this.debounceTimer = null;
+      if (!this.editor.isEditable) return;
       this.sendEdit();
     }, this.debounceDelayInMs);
   }
