@@ -617,6 +617,12 @@ html, body {
   font-size: 11px;
 }
 
+.review-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .review-submit {
   padding: 2px 8px;
   font-size: 11px;
@@ -630,6 +636,23 @@ html, body {
 
 .review-submit:hover {
   background: var(--vscode-button-hoverBackground);
+}
+
+.review-discard {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: var(--vscode-font-family, sans-serif);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.7;
+}
+
+.review-discard:hover {
+  opacity: 1;
+  color: var(--vscode-testing-iconFailed, #f44);
 }
 
 /* Diff highlighting */

@@ -25,7 +25,9 @@ export class CommentToggle {
   private reviewBarEl: HTMLDivElement;
   private prBadgeEl: HTMLSpanElement;
   private refreshBtn: HTMLButtonElement;
+  private actionsRow: HTMLDivElement;
   private submitBtn: HTMLButtonElement;
+  private discardBtn: HTMLButtonElement;
   private stalenessEl: HTMLSpanElement;
   private unsubscribe: (() => void) | null = null;
 
@@ -76,12 +78,23 @@ export class CommentToggle {
 
     this.reviewBarEl.appendChild(refreshRow);
 
-    // Submit button (appears when pending comments exist)
+    // Actions row: Submit + Discard (appears when pending comments exist)
+    this.actionsRow = document.createElement('div');
+    this.actionsRow.className = 'review-actions-row';
+    this.actionsRow.style.display = 'none';
+
     this.submitBtn = document.createElement('button');
     this.submitBtn.className = 'review-submit';
-    this.submitBtn.style.display = 'none';
     this.submitBtn.addEventListener('click', () => this.onSubmitClick());
-    this.reviewBarEl.appendChild(this.submitBtn);
+    this.actionsRow.appendChild(this.submitBtn);
+
+    this.discardBtn = document.createElement('button');
+    this.discardBtn.className = 'review-discard';
+    this.discardBtn.textContent = 'Discard All';
+    this.discardBtn.addEventListener('click', () => this.onDiscardClick());
+    this.actionsRow.appendChild(this.discardBtn);
+
+    this.reviewBarEl.appendChild(this.actionsRow);
 
     document.body.appendChild(this.reviewBarEl);
 
@@ -207,13 +220,18 @@ export class CommentToggle {
     this.onDeactivateCallback = callback;
   }
 
+  private onDiscardClick(): void {
+    if (this.store.getCount() === 0) return;
+    this.store.clear();
+  }
+
   private updateSubmitButton(): void {
     const count = this.store.getCount();
     if (!this.reviewActive || count === 0) {
-      this.submitBtn.style.display = 'none';
+      this.actionsRow.style.display = 'none';
       return;
     }
-    this.submitBtn.style.display = '';
+    this.actionsRow.style.display = '';
     if (this.submitState === 'idle') {
       this.submitBtn.textContent = `Submit Review (${count})`;
       this.submitBtn.disabled = false;
@@ -254,7 +272,7 @@ export class CommentToggle {
     this.toggleBtn.textContent = 'Review: Off';
     this.toggleBtn.classList.remove('loading', 'error');
     this.reviewBarEl.style.display = 'none';
-    this.submitBtn.style.display = 'none';
+    this.actionsRow.style.display = 'none';
     this.prNumber = null;
     this.prUrl = null;
     this.lastFetchedAt = null;
