@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'crypto';
 import { DocumentSyncManager } from './sync/documentSync';
+import { CommentHandler } from './gh/commentHandler';
 
 interface PanelAnchorState {
   lastAnchor: { anchorText: string; roughFraction: number } | null;
@@ -60,6 +61,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const documentDirUri = webview.asWebviewUri(documentDir).toString();
     const syncManager = new DocumentSyncManager(document, webview, false, documentDirUri);
 
+    // Create comment handler
+    const cwd = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? '';
+    const commentHandler = new CommentHandler(webview, this.context, document.uri, cwd);
+
     // Wire up message handling from webview
     const messageDisposable = webview.onDidReceiveMessage((msg) => {
       if (msg.type === 'scrollAnchorUpdate') {
@@ -70,6 +75,38 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
         if (state) state.lastAnchor = { anchorText: msg.anchorText, roughFraction: Math.max(0, Math.min(1, fraction)) };
         return;
       }
+
+      // Route comment-related messages to CommentHandler
+      switch (msg.type) {
+        case 'commentToggle':
+          commentHandler.handleCommentToggle(msg).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            console.error('[LiveMarkdown] Comment toggle error:', message);
+          });
+          return;
+        case 'commentRefresh':
+          commentHandler.handleCommentRefresh().catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            console.error('[LiveMarkdown] Comment refresh error:', message);
+          });
+          return;
+        case 'commentOpenPr':
+          commentHandler.handleCommentOpenPr();
+          return;
+        case 'validateLine':
+          commentHandler.handleValidateLine(msg);
+          return;
+        case 'submitReview':
+          commentHandler.handleSubmitReview(msg).catch((err: unknown) => {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            console.error('[LiveMarkdown] Submit review error:', message);
+          });
+          return;
+        case 'savePendingQueue':
+          commentHandler.handleSavePendingQueue(msg);
+          return;
+      }
+
       syncManager.handleWebviewMessage(msg).then(() => {
         if (msg.type === 'ready') {
           const pendingAnchor = this.pendingPreviewAnchors.get(docKey);
