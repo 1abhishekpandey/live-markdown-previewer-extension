@@ -61,13 +61,13 @@ export class CommentToggle {
     // Subscribe to pending count changes
     this.unsubscribe = this.store.onChange(() => this.updateSubmitButton());
 
-    // In review mode, intercept mousedown on table cells in the capture phase
-    // BEFORE ProseMirror's tableEditing plugin can create a CellSelection.
-    // This allows native browser text selection across table rows.
+    // Intercept mousedown on table cells in the capture phase BEFORE
+    // ProseMirror's tableEditing plugin can create a CellSelection.
+    // This allows native browser text selection across table rows
+    // in both normal and review modes.
     const editorParent = this.editor.view.dom.parentElement;
     if (editorParent) {
       editorParent.addEventListener('mousedown', (e: MouseEvent) => {
-        if (!this.reviewActive) return;
         const target = e.target as HTMLElement;
         if (target.closest('td, th')) {
           e.stopPropagation();
