@@ -174,22 +174,26 @@ export class CommentPanel {
 
     panel.appendChild(body);
 
-    // Reply section
-    const replySection = document.createElement('div');
-    replySection.className = 'comment-panel-reply';
+    // Reply section — hidden for new-comment panels that already have a pending comment
+    // (only one pending comment per line; replies are only for existing threads)
+    const hasPendingAlready = opts.isNewComment && opts.pendingComments.length > 0;
+    if (!hasPendingAlready) {
+      const replySection = document.createElement('div');
+      replySection.className = 'comment-panel-reply';
 
-    const textarea = document.createElement('textarea');
-    textarea.className = 'comment-reply-input';
-    textarea.placeholder = 'Type a reply...';
-    replySection.appendChild(textarea);
+      const textarea = document.createElement('textarea');
+      textarea.className = 'comment-reply-input';
+      textarea.placeholder = opts.isNewComment ? 'Type a comment...' : 'Type a reply...';
+      replySection.appendChild(textarea);
 
-    const queueBtn = document.createElement('button');
-    queueBtn.className = 'comment-reply-queue';
-    queueBtn.textContent = 'Queue';
-    queueBtn.addEventListener('click', () => this.onQueueClick(textarea, opts.threadId));
-    replySection.appendChild(queueBtn);
+      const queueBtn = document.createElement('button');
+      queueBtn.className = 'comment-reply-queue';
+      queueBtn.textContent = 'Queue';
+      queueBtn.addEventListener('click', () => this.onQueueClick(textarea, opts.threadId));
+      replySection.appendChild(queueBtn);
 
-    panel.appendChild(replySection);
+      panel.appendChild(replySection);
+    }
 
     return panel;
   }
@@ -289,6 +293,13 @@ export class CommentPanel {
     };
     this.store.add(comment);
     textarea.value = '';
+
+    // For new comments (not thread replies), hide the reply section after queuing
+    // to prevent adding multiple pending comments on the same line
+    if (threadId === null && this.panelEl) {
+      const replySection = this.panelEl.querySelector('.comment-panel-reply');
+      if (replySection) replySection.remove();
+    }
   }
 
   private positionPanel(anchorEl: HTMLElement): void {
@@ -335,7 +346,6 @@ export class CommentPanel {
   private subscribeToStore(): void {
     this.storeUnsubscribe = this.store.onChange(() => {
       if (!this.panelEl || this.currentLine === null) return;
-      // Re-render pending comments in the panel
       const body = this.panelEl.querySelector('.comment-panel-body');
       if (!body) return;
       // Remove existing pending entries and re-add
@@ -343,6 +353,39 @@ export class CommentPanel {
       const pending = this.store.getAll().filter(p => p.workingCopyLine === this.currentLine);
       for (const p of pending) {
         body.appendChild(this.renderPendingComment(p));
+      }
+
+      // Update comment count in header
+      const countEl = this.panelEl.querySelector('.comment-panel-count');
+      const totalCount = (this.panelEl.querySelectorAll('.comment-entry:not(.comment-entry-pending)').length) + pending.length;
+      if (countEl) {
+        countEl.textContent = totalCount > 0 ? `${totalCount} comment${totalCount !== 1 ? 's' : ''}` : '';
+      }
+
+      // For new-comment panels: show/hide reply section based on pending count
+      if (this.currentThreadId === null) {
+        const existingReply = this.panelEl.querySelector('.comment-panel-reply');
+        if (pending.length === 0 && !existingReply) {
+          // All pending removed → re-add the reply section
+          const replySection = document.createElement('div');
+          replySection.className = 'comment-panel-reply';
+
+          const textarea = document.createElement('textarea');
+          textarea.className = 'comment-reply-input';
+          textarea.placeholder = 'Type a comment...';
+          replySection.appendChild(textarea);
+
+          const queueBtn = document.createElement('button');
+          queueBtn.className = 'comment-reply-queue';
+          queueBtn.textContent = 'Queue';
+          queueBtn.addEventListener('click', () => this.onQueueClick(textarea, null));
+          replySection.appendChild(queueBtn);
+
+          this.panelEl.appendChild(replySection);
+        } else if (pending.length > 0 && existingReply) {
+          // Pending exists → remove reply section
+          existingReply.remove();
+        }
       }
     });
   }
