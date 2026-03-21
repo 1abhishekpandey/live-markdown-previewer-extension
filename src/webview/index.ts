@@ -174,29 +174,12 @@ document.addEventListener('comment-badge-click', ((e: CustomEvent) => {
   commentPanel.openThread(thread, badge);
 }) as EventListener);
 
-// Wire "+" button click on diff-highlighted lines (single-line, via ::after click zone)
-editorElement.addEventListener('click', (e: MouseEvent) => {
-  if (selectionBtn && selectionBtn.style.display !== 'none') return; // multi-line active
-  const target = e.target as HTMLElement;
-  const diffLine = target.closest('.diff-highlight') as HTMLElement | null;
-  if (!diffLine) return;
-
-  const rect = diffLine.getBoundingClientRect();
-  if (e.clientX < rect.right - 38) return;
-
-  const lineNum = diffLine.dataset.diffLine;
-  if (!lineNum) return;
-
-  e.stopPropagation();
-  e.preventDefault();
-  commentPanel.openNew(Number(lineNum), null, diffLine);
-});
-
-// Multi-line selection: floating "+" button when selecting across multiple diff-highlighted lines
+// Unified "+" comment button: floating button that appears on selection (single or multi-line)
+// and falls back to per-line ::after hover when no selection is active.
 const selectionBtn = document.createElement('button');
 selectionBtn.className = 'selection-comment-btn';
 selectionBtn.textContent = '+';
-selectionBtn.title = 'Comment on selected lines';
+selectionBtn.title = 'Add comment';
 selectionBtn.style.display = 'none';
 document.body.appendChild(selectionBtn);
 
@@ -208,12 +191,14 @@ function updateSelectionButton(): void {
   const state = getCommentIndicatorState(editor.view);
   if (!state.reviewMode) {
     selectionBtn.style.display = 'none';
+    editorElement?.classList.remove('has-selection');
     return;
   }
 
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
     selectionBtn.style.display = 'none';
+    editorElement?.classList.remove('has-selection');
     return;
   }
 
@@ -229,23 +214,33 @@ function updateSelectionButton(): void {
     }
   }
 
-  // Need at least 2 highlighted lines in the selection for multi-line mode
-  if (selectedLines.length < 2) {
+  if (selectedLines.length === 0) {
     selectionBtn.style.display = 'none';
+    editorElement?.classList.remove('has-selection');
     return;
   }
 
   // Sort by line number
   selectedLines.sort((a, b) => a.line - b.line);
-  selectionStartLine = selectedLines[0].line;
-  selectionEndLine = selectedLines[selectedLines.length - 1].line;
-  selectionAnchor = selectedLines[selectedLines.length - 1].el;
 
-  // Position the button at the bottom-right of the last selected line
-  const lastRect = selectionAnchor.getBoundingClientRect();
+  if (selectedLines.length === 1) {
+    // Single line selected — no startLine
+    selectionStartLine = null;
+    selectionEndLine = selectedLines[0].line;
+    selectionAnchor = selectedLines[0].el;
+  } else {
+    // Multi-line — both start and end
+    selectionStartLine = selectedLines[0].line;
+    selectionEndLine = selectedLines[selectedLines.length - 1].line;
+    selectionAnchor = selectedLines[selectedLines.length - 1].el;
+  }
+
+  // Hide per-line ::after buttons, show floating button
+  editorElement?.classList.add('has-selection');
+  const anchorRect = selectionAnchor.getBoundingClientRect();
   selectionBtn.style.display = 'flex';
-  selectionBtn.style.top = `${lastRect.bottom - 24}px`;
-  selectionBtn.style.left = `${lastRect.right - 36}px`;
+  selectionBtn.style.top = `${anchorRect.top + anchorRect.height / 2 - 13}px`;
+  selectionBtn.style.left = `${anchorRect.right - 36}px`;
 }
 
 document.addEventListener('selectionchange', updateSelectionButton);
@@ -253,11 +248,33 @@ document.addEventListener('selectionchange', updateSelectionButton);
 selectionBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   e.preventDefault();
-  if (selectionStartLine !== null && selectionEndLine !== null && selectionAnchor) {
+  if (selectionEndLine !== null && selectionAnchor) {
     commentPanel.openNew(selectionEndLine, selectionStartLine, selectionAnchor);
     selectionBtn.style.display = 'none';
+    editorElement?.classList.remove('has-selection');
     window.getSelection()?.removeAllRanges();
   }
+});
+
+// Fallback: per-line ::after click (only when no selection is active)
+editorElement?.addEventListener('click', (e: MouseEvent) => {
+  if (selectionBtn.style.display !== 'none') return;
+  const state = getCommentIndicatorState(editor.view);
+  if (!state.reviewMode) return;
+
+  const target = e.target as HTMLElement;
+  const diffLine = target.closest('.diff-highlight') as HTMLElement | null;
+  if (!diffLine) return;
+
+  const rect = diffLine.getBoundingClientRect();
+  if (e.clientX < rect.right - 38) return;
+
+  const lineNum = diffLine.dataset.diffLine;
+  if (!lineNum) return;
+
+  e.stopPropagation();
+  e.preventDefault();
+  commentPanel.openNew(Number(lineNum), null, diffLine);
 });
 
 syncClient.init();

@@ -636,7 +636,12 @@ html, body {
   opacity: 1;
 }
 
-/* Multi-line selection floating "+" button */
+/* Hide per-line ::after buttons when user has an active selection */
+.has-selection .diff-highlight::after {
+  display: none;
+}
+
+/* Selection-based floating "+" button (single or multi-line) */
 .selection-comment-btn {
   position: fixed;
   display: flex;
