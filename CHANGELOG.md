@@ -4,6 +4,16 @@ All notable changes to the LiveMarkdown extension are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-03-21
+
+# Features
+
+- Inline PR review comments — view and post GitHub PR comments directly in the editor
+
+# Fixed
+
+- Eliminate scroll position drift when toggling between preview and raw mode
+
 ## [0.0.3] - 2026-03-08
 
 # Fixed
@@ -63,6 +73,7 @@ Initial release.
 - Extension icon, licence, and install script
 - Full theme integration via `var(--vscode-*)` CSS variables
 
+[0.4.0]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.0.3...v0.4.0
 [0.0.3]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/releases/tag/v0.0.1
