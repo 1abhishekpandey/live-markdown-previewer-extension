@@ -941,7 +941,8 @@ html, body {
 .comment-body {
   color: var(--vscode-editor-foreground);
   white-space: pre-wrap;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
   font-size: 13px;
   line-height: 1.4;
 }

@@ -159,9 +159,20 @@ export async function submitReviewBatch(
       const existingReviewNodeId = await findPendingReviewNodeId(pr, cwd);
 
       if (existingReviewNodeId) {
-        // Add comments to the existing pending review via GraphQL
+        // Add comments to the existing pending review via GraphQL.
+        // Track partial success to avoid re-queuing already-posted comments.
+        const postedTempIds: string[] = [];
         for (const comment of newComments) {
-          await addCommentToExistingReview(existingReviewNodeId, filePath, comment, cwd);
+          try {
+            await addCommentToExistingReview(existingReviewNodeId, filePath, comment, cwd);
+            postedTempIds.push(comment.tempId);
+          } catch (err) {
+            const failedTempIds = newComments
+              .filter(c => !postedTempIds.includes(c.tempId))
+              .map(c => c.tempId);
+            const message = err instanceof GhApiError ? err.stderr : (err instanceof Error ? err.message : 'Unknown error');
+            return { success: false, error: `Failed to create review: ${message}`, failedReplyIds: failedTempIds };
+          }
         }
       } else {
         // Create a new pending review via REST (omitting event = PENDING)

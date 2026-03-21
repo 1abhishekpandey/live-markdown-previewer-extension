@@ -22,7 +22,10 @@ export async function detectPr(cwd: string): Promise<PrInfo | null> {
       repo,
     };
   } catch (err) {
-    if (err instanceof GhApiError) {
+    if (
+      err instanceof GhApiError &&
+      /no pull requests found|pull request is closed|not a git repository/i.test(err.stderr)
+    ) {
       return null;
     }
     throw err;
@@ -34,13 +37,13 @@ export async function getRepoInfo(
 ): Promise<{ owner: string; repo: string }> {
   const { stdout } = await execGh(['repo', 'view', '--json', 'owner,name'], cwd);
   const json = JSON.parse(stdout);
-  const owner = json.owner.login;
+  const owner = json.owner?.login;
   const repo = json.name;
 
-  if (!GITHUB_NAME_PATTERN.test(owner)) {
+  if (typeof owner !== 'string' || !GITHUB_NAME_PATTERN.test(owner)) {
     throw new Error(`Invalid GitHub owner name: ${owner}`);
   }
-  if (!GITHUB_NAME_PATTERN.test(repo)) {
+  if (typeof repo !== 'string' || !GITHUB_NAME_PATTERN.test(repo)) {
     throw new Error(`Invalid GitHub repo name: ${repo}`);
   }
 

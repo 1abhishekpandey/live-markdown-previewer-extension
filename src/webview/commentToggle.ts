@@ -31,6 +31,8 @@ export class CommentToggle {
   private errorEl: HTMLSpanElement;
   private errorTimeout: ReturnType<typeof setTimeout> | null = null;
   private unsubscribe: (() => void) | null = null;
+  private tableMouseDownHandler: ((e: MouseEvent) => void) | null = null;
+  private editorParentRef: HTMLElement | null = null;
 
   constructor(editor: Editor, vscode: VsCodeApi, store: PendingCommentStore) {
     this.editor = editor;
@@ -112,14 +114,15 @@ export class CommentToggle {
     // ProseMirror's tableEditing plugin can create a CellSelection.
     // This allows native browser text selection across table rows
     // in both normal and review modes.
-    const editorParent = this.editor.view.dom.parentElement;
-    if (editorParent) {
-      editorParent.addEventListener('mousedown', (e: MouseEvent) => {
+    this.editorParentRef = this.editor.view.dom.parentElement;
+    if (this.editorParentRef) {
+      this.tableMouseDownHandler = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
         if (target.closest('td, th')) {
           e.stopPropagation();
         }
-      }, true);
+      };
+      this.editorParentRef.addEventListener('mousedown', this.tableMouseDownHandler, true);
     }
   }
 
@@ -288,5 +291,8 @@ export class CommentToggle {
   dispose(): void {
     this.cleanup();
     if (this.unsubscribe) this.unsubscribe();
+    if (this.editorParentRef && this.tableMouseDownHandler) {
+      this.editorParentRef.removeEventListener('mousedown', this.tableMouseDownHandler, true);
+    }
   }
 }

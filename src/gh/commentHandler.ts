@@ -66,51 +66,55 @@ export class CommentHandler {
 
     this.cachedPrInfo = prInfo;
 
-    const [diffOutput, currentUser] = await Promise.all([
-      fetchDiff(prInfo, this.cwd),
-      this.cachedCurrentUser
-        ? Promise.resolve(this.cachedCurrentUser)
-        : fetchCurrentUser(this.cwd),
-    ]);
+    try {
+      const [diffOutput, currentUser] = await Promise.all([
+        fetchDiff(prInfo, this.cwd),
+        this.cachedCurrentUser
+          ? Promise.resolve(this.cachedCurrentUser)
+          : fetchCurrentUser(this.cwd),
+      ]);
 
-    this.cachedCurrentUser = currentUser;
+      this.cachedCurrentUser = currentUser;
 
-    const lineMapping = parseDiffForFile(diffOutput, filePath);
+      const lineMapping = parseDiffForFile(diffOutput, filePath);
 
-    if (lineMapping.addedLines.length === 0) {
-      this.sendError('This file has no changes in the current PR diff.');
-      return;
-    }
+      if (lineMapping.addedLines.length === 0) {
+        this.sendError('This file has no changes in the current PR diff.');
+        return;
+      }
 
-    this.cachedLineMapping = lineMapping;
+      this.cachedLineMapping = lineMapping;
 
-    const [publishedThreads, pendingThreads] = await Promise.all([
-      fetchComments(prInfo, filePath, lineMapping, currentUser, this.cwd),
-      fetchPendingReviewComments(prInfo, filePath, lineMapping, currentUser, this.cwd),
-    ]);
-    const threads = [...publishedThreads, ...pendingThreads]
-      .sort((a, b) => a.workingCopyLine - b.workingCopyLine);
-    const diffHighlightLines = lineMapping.addedLines.map((l) => l.lineNumber);
+      const [publishedThreads, pendingThreads] = await Promise.all([
+        fetchComments(prInfo, filePath, lineMapping, currentUser, this.cwd),
+        fetchPendingReviewComments(prInfo, filePath, lineMapping, currentUser, this.cwd),
+      ]);
+      const threads = [...publishedThreads, ...pendingThreads]
+        .sort((a, b) => a.workingCopyLine - b.workingCopyLine);
+      const diffHighlightLines = lineMapping.addedLines.map((l) => l.lineNumber);
 
-    this.postMessage({
-      type: 'commentData',
-      threads,
-      prNumber: prInfo.number,
-      prUrl: prInfo.url,
-      currentUser,
-      diffHighlightLines,
-      lastFetchedAt: Date.now(),
-    } satisfies CommentDataMessage);
-
-    const savedPending = this.context.workspaceState.get<PendingComment[]>(PENDING_COMMENTS_KEY);
-    if (savedPending && savedPending.length > 0) {
       this.postMessage({
-        type: 'savedPendingQueue',
-        pending: savedPending,
-      } satisfies SavedPendingQueueMessage);
-    }
+        type: 'commentData',
+        threads,
+        prNumber: prInfo.number,
+        prUrl: prInfo.url,
+        currentUser,
+        diffHighlightLines,
+        lastFetchedAt: Date.now(),
+      } satisfies CommentDataMessage);
 
-    this.reviewModeActive = true;
+      const savedPending = this.context.workspaceState.get<PendingComment[]>(PENDING_COMMENTS_KEY);
+      if (savedPending && savedPending.length > 0) {
+        this.postMessage({
+          type: 'savedPendingQueue',
+          pending: savedPending,
+        } satisfies SavedPendingQueueMessage);
+      }
+
+      this.reviewModeActive = true;
+    } catch (err) {
+      this.handleGhError(err);
+    }
   }
 
   async handleCommentRefresh(): Promise<void> {
@@ -250,11 +254,12 @@ export class CommentHandler {
         this.cwd,
       );
 
+      const allFailedIds = [...failedIds, ...(result.failedReplyIds ?? [])];
       const submitResult: ReviewSubmitResultMessage = {
         type: 'reviewSubmitResult',
-        success: result.success,
+        success: result.success && allFailedIds.length === 0,
         error: result.error,
-        failedReplyIds: [...failedIds, ...(result.failedReplyIds ?? [])],
+        failedReplyIds: allFailedIds,
       };
 
       this.postMessage(submitResult);
