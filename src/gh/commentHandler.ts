@@ -199,20 +199,15 @@ export class CommentHandler {
     }
 
     const filePath = this.getRelativePath();
-    console.log('[LiveMarkdown] Submit review — cwd:', this.cwd, 'filePath:', filePath);
-    console.log('[LiveMarkdown] Pending comments:', JSON.stringify(msg.pending, null, 2));
 
     const newComments = msg.pending.filter((c) => c.threadId === null);
     const replies = msg.pending.filter((c) => c.threadId !== null);
-    console.log('[LiveMarkdown] New comments:', newComments.length, 'Replies:', replies.length);
 
     try {
       const commitSha = await getLatestCommitSha(this.cachedPrInfo, this.cwd);
-      console.log('[LiveMarkdown] Commit SHA:', commitSha);
 
       const diffOutput = await fetchDiff(this.cachedPrInfo, this.cwd);
       const freshMapping = parseDiffForFile(diffOutput, filePath);
-      console.log('[LiveMarkdown] Fresh mapping — addedLines:', freshMapping.addedLines.length, 'wcToDiff size:', freshMapping.workingCopyToDiffLine.size);
 
       const validatedNew: PendingComment[] = [];
       const failedIds: string[] = [];
@@ -224,7 +219,6 @@ export class CommentHandler {
           freshMapping,
         );
 
-        console.log(`[LiveMarkdown] Validate line ${comment.workingCopyLine} → diffLine: ${mapped.diffLine}`);
         if (mapped.diffLine === null) {
           failedIds.push(comment.tempId);
           continue;
@@ -237,8 +231,6 @@ export class CommentHandler {
         });
       }
 
-      console.log('[LiveMarkdown] Validated:', validatedNew.length, 'Failed:', failedIds.length);
-
       if (failedIds.length > 0 && validatedNew.length === 0 && replies.length === 0) {
         this.postMessage({
           type: 'reviewSubmitResult',
@@ -249,7 +241,6 @@ export class CommentHandler {
         return;
       }
 
-      console.log('[LiveMarkdown] Calling submitReviewBatch...');
       const result = await submitReviewBatch(
         this.cachedPrInfo,
         validatedNew,
@@ -258,7 +249,6 @@ export class CommentHandler {
         filePath,
         this.cwd,
       );
-      console.log('[LiveMarkdown] Submit result:', JSON.stringify(result));
 
       const submitResult: ReviewSubmitResultMessage = {
         type: 'reviewSubmitResult',
@@ -269,9 +259,8 @@ export class CommentHandler {
 
       this.postMessage(submitResult);
 
-      if (result.success) {
-        await this.handleCommentRefresh();
-      }
+      // Always auto-refresh after submit to show the latest state
+      await this.handleCommentRefresh();
     } catch (err) {
       this.handleGhError(err);
       this.postMessage({
