@@ -1,6 +1,8 @@
 import { execGh, GhApiError } from './ghCli';
 import type { PrInfo } from '../sync/commentTypes';
 
+const GITHUB_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+
 export async function detectPr(cwd: string): Promise<PrInfo | null> {
   try {
     const { stdout: prStdout } = await execGh(
@@ -32,7 +34,17 @@ export async function getRepoInfo(
 ): Promise<{ owner: string; repo: string }> {
   const { stdout } = await execGh(['repo', 'view', '--json', 'owner,name'], cwd);
   const json = JSON.parse(stdout);
-  return { owner: json.owner.login, repo: json.name };
+  const owner = json.owner.login;
+  const repo = json.name;
+
+  if (!GITHUB_NAME_PATTERN.test(owner)) {
+    throw new Error(`Invalid GitHub owner name: ${owner}`);
+  }
+  if (!GITHUB_NAME_PATTERN.test(repo)) {
+    throw new Error(`Invalid GitHub repo name: ${repo}`);
+  }
+
+  return { owner, repo };
 }
 
 export async function openPrInBrowser(cwd: string): Promise<void> {

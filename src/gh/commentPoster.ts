@@ -22,6 +22,9 @@ async function findPendingReviewNodeId(pr: PrInfo, cwd: string): Promise<string 
 /**
  * Add a comment to an existing pending review via GraphQL
  * addPullRequestReviewThread mutation.
+ *
+ * Uses parameterised GraphQL variables instead of string interpolation
+ * to prevent injection via filePath, reviewNodeId, or comment body.
  */
 async function addCommentToExistingReview(
   reviewNodeId: string,
@@ -29,24 +32,44 @@ async function addCommentToExistingReview(
   comment: PendingComment,
   cwd: string,
 ): Promise<void> {
-  const startLineField = comment.diffStartLine != null
-    ? `startLine: ${comment.diffStartLine}, startSide: RIGHT,`
-    : '';
+  const hasStartLine = comment.diffStartLine != null;
 
-  const query = `mutation {
-    addPullRequestReviewThread(input: {
-      pullRequestReviewId: "${reviewNodeId}",
-      path: "${filePath}",
-      line: ${comment.diffLine},
-      side: RIGHT,
-      ${startLineField}
-      body: ${JSON.stringify(comment.body)}
-    }) {
-      thread { id }
-    }
-  }`;
+  const mutation = hasStartLine
+    ? `mutation($reviewId: ID!, $path: String!, $line: Int!, $startLine: Int!, $body: String!) {
+        addPullRequestReviewThread(input: {
+          pullRequestReviewId: $reviewId,
+          path: $path,
+          line: $line,
+          side: RIGHT,
+          startLine: $startLine,
+          startSide: RIGHT,
+          body: $body
+        }) { thread { id } }
+      }`
+    : `mutation($reviewId: ID!, $path: String!, $line: Int!, $body: String!) {
+        addPullRequestReviewThread(input: {
+          pullRequestReviewId: $reviewId,
+          path: $path,
+          line: $line,
+          side: RIGHT,
+          body: $body
+        }) { thread { id } }
+      }`;
 
-  await execGh(['api', 'graphql', '-f', `query=${query}`], cwd);
+  const args = [
+    'api', 'graphql',
+    '-f', `query=${mutation}`,
+    '-f', `reviewId=${reviewNodeId}`,
+    '-f', `path=${filePath}`,
+    '-F', `line=${comment.diffLine}`,
+    '-f', `body=${comment.body}`,
+  ];
+
+  if (hasStartLine) {
+    args.push('-F', `startLine=${comment.diffStartLine}`);
+  }
+
+  await execGh(args, cwd);
 }
 
 /**
@@ -54,28 +77,37 @@ async function addCommentToExistingReview(
  * Used when REST replies fail due to the "one pending review" constraint.
  * Looks up the GraphQL thread ID by finding the thread whose root comment
  * matches the reply's threadId (database ID).
+ *
+ * Uses parameterised GraphQL variables to prevent injection.
  */
 async function replyViaGraphQL(
   pr: PrInfo,
   reply: PendingComment,
   cwd: string,
 ): Promise<void> {
-  // Find the GraphQL thread ID for the comment we're replying to
-  const { stdout } = await execGh(
-    ['api', 'graphql', '-f', `query=query {
-      repository(owner: "${pr.owner}", name: "${pr.repo}") {
-        pullRequest(number: ${pr.number}) {
-          reviewThreads(last: 100) {
-            nodes {
-              id
-              comments(first: 1) {
-                nodes { databaseId }
-              }
+  const threadQuery = `query($owner: String!, $name: String!, $prNumber: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequest(number: $prNumber) {
+        reviewThreads(last: 100) {
+          nodes {
+            id
+            comments(first: 1) {
+              nodes { databaseId }
             }
           }
         }
       }
-    }`],
+    }
+  }`;
+
+  const { stdout } = await execGh(
+    [
+      'api', 'graphql',
+      '-f', `query=${threadQuery}`,
+      '-f', `owner=${pr.owner}`,
+      '-f', `name=${pr.repo}`,
+      '-F', `prNumber=${pr.number}`,
+    ],
     cwd,
   );
 
@@ -89,15 +121,22 @@ async function replyViaGraphQL(
     throw new Error(`Could not find thread for comment ${reply.threadId}`);
   }
 
+  const replyMutation = `mutation($threadId: ID!, $body: String!) {
+    addPullRequestReviewThreadReply(input: {
+      pullRequestReviewThreadId: $threadId,
+      body: $body
+    }) {
+      comment { id }
+    }
+  }`;
+
   await execGh(
-    ['api', 'graphql', '-f', `query=mutation {
-      addPullRequestReviewThreadReply(input: {
-        pullRequestReviewThreadId: "${matchingThread.id}",
-        body: ${JSON.stringify(reply.body)}
-      }) {
-        comment { id }
-      }
-    }`],
+    [
+      'api', 'graphql',
+      '-f', `query=${replyMutation}`,
+      '-f', `threadId=${matchingThread.id}`,
+      '-f', `body=${reply.body}`,
+    ],
     cwd,
   );
 }
