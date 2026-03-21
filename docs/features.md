@@ -55,6 +55,7 @@ Review GitHub pull request comments directly in the editor — no need to switch
 - **Add comments** — click the `+` on any highlighted line, or select text across multiple lines to comment on a range
 - **Batch submission** — comments are queued locally and posted as a draft review (no notifications until you publish on GitHub)
 - **Discard** — remove individual pending comments or discard all at once
+- **One comment per line** — multiple separate comments on the same line are not supported (may be added in future)
 - **Requires `gh` CLI** — all GitHub communication goes through the [GitHub CLI](https://cli.github.com) (must be installed and authenticated)
 
 # Read-Only Support

@@ -348,6 +348,7 @@ Errors are displayed as red text below the toolbar. Common errors:
 ## Limitations
 
 - Comments can only be added on lines changed in the PR (highlighted green)
+- Only one comment per line (or line range) — multiple separate comments on the same line are not supported. May be added in future if needed.
 - Only the current file's comments are shown — no cross-file navigation
 - Comment editing and deletion must be done on GitHub (refresh to sync)
 - Single PR per branch (most recent if multiple exist)
