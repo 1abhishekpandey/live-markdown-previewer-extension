@@ -347,36 +347,36 @@ Phases 4, 5, and 6 can be worked in parallel — they have no dependencies on ea
 
 ### Tasks
 
-- [ ] Task 1: Implement real `submitReviewBatch` — build Review API request body (event: COMMENT, body: "", commit_id, comments array with path/line/side/body/start_line/start_side), pipe JSON to `gh api --input -`; post replies individually with in_reply_to
+- [x] Task 1: Implement real `submitReviewBatch` — build Review API request body (event: COMMENT, body: "", commit_id, comments array with path/line/side/body/start_line/start_side), pipe JSON to `gh api --input -`; post replies individually with in_reply_to
   - Verification: Type-checks; request body matches GitHub API specification
-- [ ] Task 2: Implement partial failure handling — if batch succeeds but some replies fail, return failedReplyIds with the failed tempIds
+- [x] Task 2: Implement partial failure handling — if batch succeeds but some replies fail, return failedReplyIds with the failed tempIds
   - Verification: Unit test with mock where first reply succeeds, second fails
-- [ ] Task 3: Update `commentPoster.test.ts` — add test cases for real posting mode (verify request body shape, verify reply API call shape, verify partial failure returns correct IDs)
+- [x] Task 3: Update `commentPoster.test.ts` — add test cases for real posting mode (verify request body shape, verify reply API call shape, verify partial failure returns correct IDs)
   - Verification: `npx vitest run src/__tests__/unit/commentPoster.test.ts` — all pass
-- [ ] Task 4: E2E test: queue 1 new comment, submit, verify it appears on GitHub PR page
+- [x] Task 4: E2E test: queue 1 new comment, submit, verify it appears on GitHub PR page
   - Verification: Comment visible on GitHub at the correct diff line
-- [ ] Task 5: E2E test: queue 1 new + 1 reply, submit, verify both appear on GitHub
+- [x] Task 5: E2E test: queue 1 new + 1 reply, submit, verify both appear on GitHub
   - Verification: New comment at correct line; reply in correct thread
-- [ ] Task 6: E2E test: queue multi-line comment, submit, verify line range on GitHub
+- [x] Task 6: E2E test: queue multi-line comment, submit, verify line range on GitHub
   - Verification: GitHub shows the comment spanning the correct line range
-- [ ] Task 7: E2E test: partial failure — reply to a deleted thread, verify failed reply stays pending
+- [x] Task 7: E2E test: partial failure — reply to a deleted thread, verify failed reply stays pending
   - Verification: ReviewSubmitResult has failedReplyIds; failed reply still in pending queue
-- [ ] Task 8: E2E test: stale SHA — push a commit without refreshing, submit, verify auto-refresh and retry
+- [x] Task 8: E2E test: stale SHA — push a commit without refreshing, submit, verify auto-refresh and retry
   - Verification: Comment posted after automatic re-validation
-- [ ] Task 9: Run full test suite one final time
+- [x] Task 9: Run full test suite one final time
   - Verification: `npm test` passes with zero failures
-- [ ] Task 10: Clean up any remaining TODO comments or debug logging
+- [x] Task 10: Clean up any remaining TODO comments or debug logging
   - Verification: `grep -r "TODO\|console.log\|FIXME" src/gh/ src/webview/commentPanel.ts src/webview/commentIndicator.ts src/webview/commentToggle.ts src/webview/pendingCommentStore.ts` returns nothing unexpected
 
 ### Phase verification
 
-- [ ] All tasks above complete
-- [ ] `npm test` passes
-- [ ] `npm run build` succeeds
-- [ ] Real comments posted to GitHub via the extension
-- [ ] Batch + replies verified on GitHub
-- [ ] Multi-line comment range verified on GitHub
-- [ ] No regressions in existing functionality
+- [x] All tasks above complete
+- [x] `npm test` passes
+- [x] `npm run build` succeeds
+- [x] Real comments posted to GitHub via the extension
+- [x] Batch + replies verified on GitHub
+- [x] Multi-line comment range verified on GitHub
+- [x] No regressions in existing functionality
 
 ---
 
@@ -395,7 +395,7 @@ Phases 4, 5, and 6 can be worked in parallel — they have no dependencies on ea
 | Phase 6: Webview Decorations + Panel | [x] | 265 tests passing |
 | Phase 7: Webview Integration + CSS | [x] | 265 tests, build passes |
 | Phase 8: E2E Verification (stubbed) | [x] | 265 tests, E2E verified with real PR |
-| Phase 9: Real Posting + Final Integration | [ ] | Ship it |
+| Phase 9: Real Posting + Final Integration | [x] | Shipped — real posting, pending review support, security hardened |
 
 ## Parallel Work Windows
 
