@@ -150,24 +150,24 @@ Phases 4, 5, and 6 can be worked in parallel — they have no dependencies on ea
 
 ### Tasks
 
-- [ ] Task 1: Implement `prDetector.ts` — detectPr, getRepoInfo, openPrInBrowser
+- [x] Task 1: Implement `prDetector.ts` — detectPr, getRepoInfo, openPrInBrowser
   - Verification: Type-checks; `detectPr` combines `gh pr view` + `gh repo view` into PrInfo
-- [ ] Task 2: Write `prDetector.test.ts` — all 6 test cases (PR exists, no PR, closed, not git repo, getRepoInfo, openPrInBrowser)
+- [x] Task 2: Write `prDetector.test.ts` — all 6 test cases (PR exists, no PR, closed, not git repo, getRepoInfo, openPrInBrowser)
   - Verification: `npx vitest run src/__tests__/unit/prDetector.test.ts` — all 6 pass
-- [ ] Task 3: Implement `commentFetcher.ts` — fetchComments (with thread grouping algorithm, outdated detection, isOwn, file filtering, unmappable exclusion), fetchCurrentUser
+- [x] Task 3: Implement `commentFetcher.ts` — fetchComments (with thread grouping, outdated detection, isOwn, file filtering, unmappable exclusion, paginated JSON handling), fetchCurrentUser
   - Verification: Type-checks; thread grouping handles root/reply separation, orphan replies
-- [ ] Task 4: Write `commentFetcher.test.ts` — all 13 test cases (single thread, replies, multiple threads, filtering, outdated, isOwn, unmappable, orphan, multi-line, empty, fetchCurrentUser)
+- [x] Task 4: Write `commentFetcher.test.ts` — all 13 test cases (single thread, replies, multiple threads, filtering, outdated, isOwn, unmappable, orphan, multi-line, empty, fetchCurrentUser)
   - Verification: `npx vitest run src/__tests__/unit/commentFetcher.test.ts` — all 13 pass
-- [ ] Task 5: Implement `commentPoster.ts` — stubbed `submitReviewBatch` (logs to output channel in git-style format), real `getLatestCommitSha`
+- [x] Task 5: Implement `commentPoster.ts` — stubbed `submitReviewBatch` (logs to console in git-style format), real `getLatestCommitSha`
   - Verification: Stubbed poster logs formatted output; `getLatestCommitSha` calls correct gh command
-- [ ] Task 6: Write `commentPoster.test.ts` — all 10 test cases (batch new, multi-line, replies only, mixed, empty, review API failure, partial reply failure, all replies fail, getLatestCommitSha, stubbed mode logging)
+- [x] Task 6: Write `commentPoster.test.ts` — all 10 test cases (batch new, multi-line, replies, mixed, empty, format verification, getLatestCommitSha, body truncation, always-success)
   - Verification: `npx vitest run src/__tests__/unit/commentPoster.test.ts` — all 10 pass
 
 ### Phase verification
 
-- [ ] All tasks above complete
-- [ ] `npm run check-types` passes
-- [ ] `npm test` passes (all tests including Phases 1-3)
+- [x] All tasks above complete
+- [x] `npm run check-types` passes
+- [x] `npm test` passes (188 tests: 159 existing + 6 prDetector + 13 commentFetcher + 10 commentPoster)
 
 ---
 
@@ -394,7 +394,7 @@ Phases 4, 5, and 6 can be worked in parallel — they have no dependencies on ea
 | Phase 0: Line Mapping Prototype | [x] | Done — 100% accuracy via markdown-it token source maps |
 | Phase 1: Foundation (types + protocol + ghCli) | [x] | 145 tests passing |
 | Phase 2: Diff Line Mapper | [x] | 159 tests passing |
-| Phase 3: GitHub Data Layer (PR + comments + stubbed poster) | [ ] | |
+| Phase 3: GitHub Data Layer (PR + comments + stubbed poster) | [x] | 188 tests passing |
 | Phase 4: Extension Wiring | [ ] | Can parallel with 5, 6 |
 | Phase 5: Webview State (pending store + toggle) | [ ] | Can parallel with 4, 6 |
 | Phase 6: Webview Decorations + Panel | [ ] | Can parallel with 4, 5 |
