@@ -6,7 +6,7 @@ vi.mock('child_process', () => ({
   execFile: (...args: any[]) => mockExecFile(...args),
 }));
 
-import { fetchComments, fetchCurrentUser } from '../../gh/commentFetcher';
+import { fetchComments, fetchCurrentUser, fetchPendingReviewComments } from '../../gh/commentFetcher';
 
 const pr: PrInfo = {
   number: 42,
@@ -208,6 +208,152 @@ describe('fetchComments', () => {
     const threads = await fetchComments(pr, targetFile, mapping, 'me', '/tmp');
 
     expect(threads).toHaveLength(0);
+  });
+});
+
+describe('fetchPendingReviewComments', () => {
+  function makeReview(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 5000,
+      state: 'PENDING',
+      user: { login: 'me' },
+      node_id: 'R_abc123',
+      ...overrides,
+    };
+  }
+
+  function makePendingComment(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 3001,
+      user: { login: 'me' },
+      body: 'Pending comment',
+      created_at: '2026-03-20T10:00:00Z',
+      path: targetFile,
+      line: null,
+      original_line: null,
+      start_line: null,
+      position: 5,
+      original_position: 5,
+      in_reply_to_id: null,
+      side: 'RIGHT',
+      ...overrides,
+    };
+  }
+
+  /** Mock two sequential execGh calls: first returns reviews, second returns comments. */
+  function mockTwoGhCalls(reviews: unknown[], comments: unknown[]) {
+    let callCount = 0;
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        callCount++;
+        if (callCount === 1) {
+          cb(null, JSON.stringify(reviews), '');
+        } else {
+          cb(null, JSON.stringify(comments), '');
+        }
+      },
+    );
+  }
+
+  it('returns empty when no pending review exists', async () => {
+    const approvedReview = makeReview({ state: 'APPROVED' });
+    const otherUserPending = makeReview({ user: { login: 'other' } });
+    mockGhResponse([approvedReview, otherUserPending]);
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(0);
+    // Should only call the reviews endpoint, not the comments endpoint
+    expect(mockExecFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns threads for pending review comments matching the file', async () => {
+    const review = makeReview();
+    const comment = makePendingComment({ position: 5 });
+    mockTwoGhCalls([review], [comment]);
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].id).toBe(3001);
+    expect(threads[0].diffLine).toBe(5);
+    expect(threads[0].workingCopyLine).toBe(10);
+    expect(threads[0].comments).toHaveLength(1);
+    expect(threads[0].comments[0].isPending).toBe(true);
+    expect(threads[0].comments[0].body).toBe('Pending comment');
+  });
+
+  it('filters out comments for other files', async () => {
+    const review = makeReview();
+    const matchingComment = makePendingComment({ id: 3001, position: 5 });
+    const otherFileComment = makePendingComment({ id: 3002, path: 'other/file.ts', position: 8 });
+    mockTwoGhCalls([review], [matchingComment, otherFileComment]);
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].path).toBe(targetFile);
+  });
+
+  it('falls back to position/original_position when line fields are null', async () => {
+    const review = makeReview();
+    // line: null, original_line: null → falls back to position (8)
+    const comment = makePendingComment({
+      line: null,
+      original_line: null,
+      position: 8,
+      original_position: 8,
+    });
+    mockTwoGhCalls([review], [comment]);
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].diffLine).toBe(8);
+    expect(threads[0].workingCopyLine).toBe(15); // mapping: 8 → 15
+  });
+
+  it('handles orphan replies (reply with no matching root)', async () => {
+    const review = makeReview();
+    const orphan = makePendingComment({
+      id: 4001,
+      position: 8,
+      in_reply_to_id: 9999, // no root with this id
+    });
+    mockTwoGhCalls([review], [orphan]);
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].id).toBe(4001);
+    expect(threads[0].comments).toHaveLength(1);
+  });
+
+  it('returns empty on API error (catch-all)', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        cb(new Error('API failure'), '', 'gh: something went wrong');
+      },
+    );
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(0);
+  });
+
+  it('skips comments that do not map to a working copy line', async () => {
+    const review = makeReview();
+    // position: 99 is not in the mapping
+    const unmappable = makePendingComment({ id: 3010, position: 99 });
+    // position: 5 is in the mapping → wc=10
+    const mappable = makePendingComment({ id: 3011, position: 5 });
+    mockTwoGhCalls([review], [unmappable, mappable]);
+
+    const threads = await fetchPendingReviewComments(pr, targetFile, mapping, 'me', '/tmp');
+
+    expect(threads).toHaveLength(1);
+    expect(threads[0].id).toBe(3011);
+    expect(threads[0].workingCopyLine).toBe(10);
   });
 });
 

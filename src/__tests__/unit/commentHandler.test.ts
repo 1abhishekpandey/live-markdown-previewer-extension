@@ -69,7 +69,7 @@ vi.mock('../../gh/diffLineMapper', () => ({
 
 import { execFile } from 'child_process';
 import { CommentHandler } from '../../gh/commentHandler';
-import { isGhAvailable, isGhAuthenticated } from '../../gh/ghCli';
+import { isGhAvailable, isGhAuthenticated, GhApiError } from '../../gh/ghCli';
 import { detectPr, openPrInBrowser } from '../../gh/prDetector';
 import { fetchComments, fetchPendingReviewComments, fetchCurrentUser } from '../../gh/commentFetcher';
 import { submitReviewBatch, getLatestCommitSha } from '../../gh/commentPoster';
@@ -370,6 +370,81 @@ describe('CommentHandler', () => {
       const calls = webview.postMessage.mock.calls;
       const pendingMsg = calls.find((c: any[]) => c[0].type === 'savedPendingQueue');
       expect(pendingMsg).toBeUndefined();
+    });
+
+    it('sends commentError when fetchDiff rejects with GhApiError', async () => {
+      const webview = makeWebview();
+      const ctx = makeContext();
+      const handler = new CommentHandler(webview as any, ctx as any, makeDocumentUri() as any, '/workspace');
+
+      mockGitClean();
+      vi.mocked(isGhAvailable).mockResolvedValue(true);
+      vi.mocked(isGhAuthenticated).mockResolvedValue(true);
+      vi.mocked(detectPr).mockResolvedValue(makePrInfo());
+      vi.mocked(fetchDiff).mockRejectedValue(
+        new GhApiError('API rate limit exceeded', 'rate limit stderr', 1),
+      );
+
+      await handler.handleCommentToggle({ type: 'commentToggle', enabled: true });
+
+      expect(webview.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'commentError',
+          message: expect.stringContaining('API rate limit exceeded'),
+        }),
+      );
+    });
+
+    it('sends commentError when fetchComments rejects', async () => {
+      const webview = makeWebview();
+      const ctx = makeContext();
+      const handler = new CommentHandler(webview as any, ctx as any, makeDocumentUri() as any, '/workspace');
+
+      mockGitClean();
+      vi.mocked(isGhAvailable).mockResolvedValue(true);
+      vi.mocked(isGhAuthenticated).mockResolvedValue(true);
+      vi.mocked(detectPr).mockResolvedValue(makePrInfo());
+      vi.mocked(fetchDiff).mockResolvedValue('diff output');
+      vi.mocked(fetchCurrentUser).mockResolvedValue('testuser');
+      vi.mocked(parseDiffForFile).mockReturnValue(makeLineMapping());
+      vi.mocked(fetchComments).mockRejectedValue(new Error('Network timeout'));
+      vi.mocked(fetchPendingReviewComments).mockResolvedValue([]);
+
+      await handler.handleCommentToggle({ type: 'commentToggle', enabled: true });
+
+      expect(webview.postMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'commentError',
+          message: expect.stringContaining('Network timeout'),
+        }),
+      );
+    });
+
+    it('does not send commentData when fetch fails (reviewModeActive stays false)', async () => {
+      const webview = makeWebview();
+      const ctx = makeContext();
+      const handler = new CommentHandler(webview as any, ctx as any, makeDocumentUri() as any, '/workspace');
+
+      mockGitClean();
+      vi.mocked(isGhAvailable).mockResolvedValue(true);
+      vi.mocked(isGhAuthenticated).mockResolvedValue(true);
+      vi.mocked(detectPr).mockResolvedValue(makePrInfo());
+      vi.mocked(fetchDiff).mockRejectedValue(new Error('connection refused'));
+
+      await handler.handleCommentToggle({ type: 'commentToggle', enabled: true });
+
+      const calls = webview.postMessage.mock.calls;
+      const commentDataMsg = calls.find((c: any[]) => c[0].type === 'commentData');
+      expect(commentDataMsg).toBeUndefined();
+
+      // Verify review mode is not active by attempting a refresh —
+      // handleCommentRefresh does nothing when reviewModeActive is false
+      // (it checks cachedPrInfo and cachedCurrentUser, which won't be set
+      // since fetchDiff failed before cachedCurrentUser could be assigned).
+      vi.clearAllMocks();
+      await handler.handleCommentRefresh();
+      expect(fetchDiff).not.toHaveBeenCalled();
+      expect(webview.postMessage).not.toHaveBeenCalled();
     });
   });
 

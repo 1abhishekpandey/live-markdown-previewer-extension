@@ -228,6 +228,96 @@ describe('commentPoster', () => {
     });
   });
 
+  describe('submitReviewBatch — existing pending review', () => {
+    function stubExistingReview() {
+      mockExecFile.mockImplementation(
+        (_cmd: string, args: string[], _opts: object, cb: Function) => {
+          if (isReviewsLookup(args)) {
+            // Return a pending review with a node_id
+            cb(null, 'PRR_abc123', '');
+          } else {
+            cb(null, '{"data":{}}', '');
+          }
+          return { stdin: mockStdin };
+        },
+      );
+    }
+
+    it('uses existing pending review when one is found', async () => {
+      stubExistingReview();
+      const c = makeComment({ tempId: 'c1', body: 'Review comment', diffLine: 10 });
+
+      const result = await submitReviewBatch(pr, [c], [], 'sha1', 'src/file.md', '/tmp');
+
+      expect(result).toEqual({ success: true });
+      // 2 calls: findPendingReviewNodeId (reviews lookup) + GraphQL mutation
+      expect(mockExecFile).toHaveBeenCalledTimes(2);
+
+      // The second call should be a GraphQL mutation, not a REST POST
+      const graphqlCall = mockExecFile.mock.calls[1];
+      const graphqlArgs: string[] = graphqlCall[1];
+      expect(graphqlArgs).toContain('graphql');
+      // Should NOT contain --method POST (that's the REST path)
+      expect(graphqlArgs).not.toContain('--method');
+      // Should pass the review node_id
+      expect(graphqlArgs).toContain('-f');
+      expect(graphqlArgs.some((a: string) => a.includes('PRR_abc123'))).toBe(true);
+    });
+
+    it('returns only failed tempIds on partial failure', async () => {
+      let graphqlCallCount = 0;
+      mockExecFile.mockImplementation(
+        (_cmd: string, args: string[], _opts: object, cb: Function) => {
+          if (isReviewsLookup(args)) {
+            cb(null, 'PRR_abc123', '');
+          } else if (args.some((a: string) => a.includes('graphql'))) {
+            graphqlCallCount++;
+            if (graphqlCallCount === 1) {
+              // First GraphQL mutation succeeds
+              cb(null, '{"data":{}}', '');
+            } else {
+              // Second GraphQL mutation fails
+              const err = new Error('Command failed') as any;
+              err.code = 1;
+              cb(err, '', 'GraphQL error: something went wrong');
+            }
+          } else {
+            cb(null, '{}', '');
+          }
+          return { stdin: mockStdin };
+        },
+      );
+
+      const c1 = makeComment({ tempId: 'c1', body: 'First comment', diffLine: 5 });
+      const c2 = makeComment({ tempId: 'c2', body: 'Second comment', diffLine: 12 });
+
+      const result = await submitReviewBatch(pr, [c1, c2], [], 'sha1', 'src/file.md', '/tmp');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Failed to create review');
+      // Only c2 should be in failedReplyIds — c1 was posted successfully
+      expect(result.failedReplyIds).toEqual(['c2']);
+    });
+
+    it('returns success when all comments succeed with existing review', async () => {
+      stubExistingReview();
+      const c1 = makeComment({ tempId: 'c1', body: 'Comment one', diffLine: 3 });
+      const c2 = makeComment({ tempId: 'c2', body: 'Comment two', diffLine: 20 });
+
+      const result = await submitReviewBatch(pr, [c1, c2], [], 'sha1', 'src/file.md', '/tmp');
+
+      expect(result).toEqual({ success: true });
+      // 3 calls: findPendingReviewNodeId + 2 GraphQL mutations (one per comment)
+      expect(mockExecFile).toHaveBeenCalledTimes(3);
+
+      // Both post-lookup calls should be GraphQL
+      for (let i = 1; i < mockExecFile.mock.calls.length; i++) {
+        const callArgs: string[] = mockExecFile.mock.calls[i][1];
+        expect(callArgs).toContain('graphql');
+      }
+    });
+  });
+
   describe('getLatestCommitSha', () => {
     it('returns trimmed SHA from gh api', async () => {
       mockExecFile.mockImplementation(

@@ -86,6 +86,18 @@ describe('detectPr', () => {
     const result = await detectPr('/tmp');
     expect(result).toBeNull();
   });
+
+  it('re-throws GhApiError for unrecognised stderr messages', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        const err = new Error('rate limit exceeded') as any;
+        err.code = 1;
+        cb(err, '', 'rate limit exceeded');
+      },
+    );
+
+    await expect(detectPr('/tmp')).rejects.toThrow('rate limit exceeded');
+  });
 });
 
 describe('getRepoInfo', () => {
@@ -98,6 +110,51 @@ describe('getRepoInfo', () => {
 
     const result = await getRepoInfo('/tmp');
     expect(result).toEqual({ owner: 'user', repo: 'repo' });
+  });
+
+  it('throws when owner is undefined', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        cb(null, JSON.stringify({ owner: {}, name: 'repo' }), '');
+      },
+    );
+
+    await expect(getRepoInfo('/tmp')).rejects.toThrow('Invalid GitHub owner name');
+  });
+
+  it('throws when repo is undefined', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        cb(null, JSON.stringify({ owner: { login: 'user' } }), '');
+      },
+    );
+
+    await expect(getRepoInfo('/tmp')).rejects.toThrow('Invalid GitHub repo name');
+  });
+
+  it('throws when owner contains invalid characters', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        cb(null, JSON.stringify({ owner: { login: 'owner/../hack' }, name: 'repo' }), '');
+      },
+    );
+
+    await expect(getRepoInfo('/tmp')).rejects.toThrow('Invalid GitHub owner name');
+  });
+
+  it('accepts valid names with dots, hyphens, and underscores', async () => {
+    mockExecFile.mockImplementation(
+      (_cmd: string, _args: string[], _opts: object, cb: Function) => {
+        cb(
+          null,
+          JSON.stringify({ owner: { login: 'my-org.name_1' }, name: 'my-repo.v2_test' }),
+          '',
+        );
+      },
+    );
+
+    const result = await getRepoInfo('/tmp');
+    expect(result).toEqual({ owner: 'my-org.name_1', repo: 'my-repo.v2_test' });
   });
 });
 
