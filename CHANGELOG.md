@@ -4,6 +4,14 @@ All notable changes to the LiveMarkdown extension are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.2] - 2026-03-22
+
+# Changed
+
+- Add marketplace keywords for better discoverability
+- Update marketplace categories to Formatters and Visualization
+- Add MIT license field to extension manifest
+
 ## [0.4.1] - 2026-03-21
 
 # Fixed
@@ -79,6 +87,7 @@ Initial release.
 - Extension icon, licence, and install script
 - Full theme integration via `var(--vscode-*)` CSS variables
 
+[0.4.2]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.0.3...v0.4.0
 [0.0.3]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.0.2...v0.0.3
