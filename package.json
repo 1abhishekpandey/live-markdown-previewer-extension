@@ -9,7 +9,8 @@
   },
   "icon": "assets/icon.png",
   "categories": [
-    "Other"
+    "Formatters",
+    "Visualization"
   ],
   "keywords": [
     "markdown",
