@@ -214,3 +214,242 @@ describe('handleDocumentChange', () => {
     expect(calls[1][0].version).toBe(2);
   });
 });
+
+describe('baseline and three-way merge', () => {
+  it('stores baseline content on baseline message', async () => {
+    const webview = makeWebview();
+    const doc = makeDocument('# Hello');
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: '# Hello' });
+    // Baseline is stored internally — verified indirectly by subsequent merge tests
+  });
+
+  it('preserves original content not in serialisation via three-way merge', async () => {
+    const original = [
+      '<p align="center">Logo</p>',
+      '',
+      '# Title',
+      '',
+      'Some text',
+      '',
+      '<!-- comment -->',
+      '[ref]: https://example.com',
+    ].join('\n');
+
+    const baseline = [
+      'Logo',
+      '',
+      '# Title',
+      '',
+      'Some text',
+    ].join('\n');
+
+    const edited = [
+      'Logo',
+      '',
+      '# Title',
+      '',
+      'Some text with edit',
+    ].join('\n');
+
+    const doc = makeDocument(original);
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    // Simulate init flow
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: baseline });
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    // Send edit
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: edited, version: 0 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent = editInstance.replace.mock.calls[0][2];
+
+    // HTML block at top preserved
+    expect(appliedContent).toContain('<p align="center">Logo</p>');
+    // User's edit applied
+    expect(appliedContent).toContain('Some text with edit');
+    // Comment and reference link preserved
+    expect(appliedContent).toContain('<!-- comment -->');
+    expect(appliedContent).toContain('[ref]: https://example.com');
+  });
+
+  it('handles pure insertion in opaque region', async () => {
+    const original = [
+      '<p align="center">Header</p>',
+      '',
+      '# Title',
+      '',
+      'Content',
+    ].join('\n');
+
+    const baseline = [
+      'Header',
+      '',
+      '# Title',
+      '',
+      'Content',
+    ].join('\n');
+
+    // User inserted "new line" before the header text
+    const edited = [
+      'Header',
+      '',
+      'new line',
+      '',
+      '# Title',
+      '',
+      'Content',
+    ].join('\n');
+
+    const doc = makeDocument(original);
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: baseline });
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: edited, version: 0 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent = editInstance.replace.mock.calls[0][2];
+
+    // Original HTML preserved
+    expect(appliedContent).toContain('<p align="center">Header</p>');
+    // Insertion applied
+    expect(appliedContent).toContain('new line');
+    // Heading still present
+    expect(appliedContent).toContain('# Title');
+  });
+
+  it('handles replacement in transparent region', async () => {
+    const original = [
+      '# Title',
+      '',
+      'Old heading text',
+      '',
+      'Paragraph',
+    ].join('\n');
+
+    const baseline = [
+      '# Title',
+      '',
+      'Old heading text',
+      '',
+      'Paragraph',
+    ].join('\n');
+
+    const edited = [
+      '# Title',
+      '',
+      'New heading text',
+      '',
+      'Paragraph',
+    ].join('\n');
+
+    const doc = makeDocument(original);
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: baseline });
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: edited, version: 0 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent = editInstance.replace.mock.calls[0][2];
+
+    expect(appliedContent).not.toContain('Old heading text');
+    expect(appliedContent).toContain('New heading text');
+    expect(appliedContent).toContain('# Title');
+    expect(appliedContent).toContain('Paragraph');
+  });
+
+  it('falls back to full replacement without baseline', async () => {
+    const doc = makeDocument('# Hello');
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    // Send ready but NO baseline
+    await mgr.handleWebviewMessage({ type: 'ready' });
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: '# Replaced', version: 0 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent = editInstance.replace.mock.calls[0][2];
+
+    // Without baseline, falls back to full replacement
+    expect(appliedContent).toBe('# Replaced');
+  });
+
+  it('external change invalidates baseline', async () => {
+    const original = '# Hello\n\n<!-- keep -->';
+    const baseline = '# Hello';
+
+    const doc = makeDocument(original);
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: baseline });
+
+    // External change invalidates baseline
+    const changedDoc = makeDocument('# Changed externally');
+    mgr.handleDocumentChange(changedDoc as any);
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    // Next edit falls back to full replacement (baseline was invalidated)
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: '# After external', version: 2 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent = editInstance.replace.mock.calls[0][2];
+
+    // Full replacement since baseline was nulled
+    expect(appliedContent).toBe('# After external');
+  });
+
+  it('returns original unchanged when baseline equals edited', async () => {
+    const original = '# Hello\n\n<!-- preserved -->';
+    const baseline = '# Hello';
+
+    const doc = makeDocument(original);
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: baseline });
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    // Send edit identical to baseline (no user change)
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: baseline, version: 0 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent = editInstance.replace.mock.calls[0][2];
+
+    // Should apply original unchanged
+    expect(appliedContent).toBe(original);
+  });
+});

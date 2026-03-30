@@ -186,6 +186,9 @@ export class SyncClient {
           this.onFirstInit = undefined;
         }
         this.isInitialized = true;
+        // Send baseline serialisation so extension can three-way merge user edits
+        const baseline = this.editor.storage.markdown.getMarkdown();
+        this.vscode.postMessage({ type: 'baseline', markdown: baseline });
         if (this.pendingScrollAnchor !== null) {
           const anchor = this.pendingScrollAnchor;
           this.pendingScrollAnchor = null;
@@ -363,6 +366,11 @@ export class SyncClient {
 
     this.currentVersion = msg.version;
     this.isExternalUpdate = false;
+
+    // Re-send baseline so the extension can resume three-way merge
+    // (external changes invalidate the previous baseline)
+    const baseline = this.editor.storage.markdown.getMarkdown();
+    this.vscode.postMessage({ type: 'baseline', markdown: baseline });
   }
 
   private sendEdit(): void {
