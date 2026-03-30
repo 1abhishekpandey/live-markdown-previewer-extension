@@ -106,19 +106,18 @@ export class DocumentSyncManager {
       edit.replace(this.document.uri, fullRange, markdown);
     }
 
-    // Set lastAppliedContent BEFORE applying edit so that any delayed
-    // document change events (e.g. insertFinalNewline) that fire after
-    // isApplyingEdit is released are caught by the trimEnd() guard.
-    const contentToApply = mergedContent ?? markdown;
-    this.lastAppliedContent = contentToApply;
-
     this.isApplyingEdit = true;
     await vscode.workspace.applyEdit(edit);
     this.currentVersion++;
 
-    // Update tracking BEFORE releasing the lock to prevent
-    // handleDocumentChange from sending spurious externalUpdates
-    this.originalContent = this.document.getText();
+    // Update all tracking from actual document state BEFORE releasing
+    // the lock to prevent handleDocumentChange from sending spurious
+    // externalUpdates. Use document.getText() (not contentToApply) so
+    // lastAppliedContent matches exactly what VS Code stored, avoiding
+    // mismatches from line-ending normalisation or trailing whitespace.
+    const actualContent = this.document.getText();
+    this.lastAppliedContent = actualContent;
+    this.originalContent = actualContent;
     this.baselineContent = markdown;
     this.isApplyingEdit = false;
   }
@@ -191,7 +190,7 @@ export class DocumentSyncManager {
     const origStart = this.mapToOriginal(mapping, changeBaseStart, baseLines.length, origLines.length);
     const origEnd = this.mapToOriginal(mapping, changeBaseEnd, baseLines.length, origLines.length);
 
-    if (origStart < 0 || origEnd < 0 || origStart > origLines.length || origEnd >= origLines.length) {
+    if (origStart < 0 || origEnd < 0 || origEnd < origStart || origStart > origLines.length || origEnd >= origLines.length) {
       return null;
     }
 

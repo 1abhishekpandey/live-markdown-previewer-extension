@@ -216,14 +216,6 @@ describe('handleDocumentChange', () => {
 });
 
 describe('baseline and three-way merge', () => {
-  it('stores baseline content on baseline message', async () => {
-    const webview = makeWebview();
-    const doc = makeDocument('# Hello');
-    const mgr = new DocumentSyncManager(doc as any, webview as any);
-    await mgr.handleWebviewMessage({ type: 'baseline', markdown: '# Hello' });
-    // Baseline is stored internally — verified indirectly by subsequent merge tests
-  });
-
   it('preserves original content not in serialisation via three-way merge', async () => {
     const original = [
       '<p align="center">Logo</p>',
