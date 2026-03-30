@@ -95,6 +95,11 @@ export interface SaveMessage {
   markdown: string;
 }
 
+export interface BaselineMessage {
+  type: 'baseline';
+  markdown: string;
+}
+
 export interface ScrollAnchorUpdateMessage {
   type: 'scrollAnchorUpdate';
   anchorText: string;
@@ -142,6 +147,7 @@ export type WebviewToExtensionMessage =
   | UndoMessage
   | RedoMessage
   | SaveMessage
+  | BaselineMessage
   | ScrollAnchorUpdateMessage
   | OpenFileMessage
   | CommentToggleMessage

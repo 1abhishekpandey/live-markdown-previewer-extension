@@ -1,5 +1,6 @@
 import { Editor, mergeAttributes } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
+import { defaultMarkdownSerializer } from 'prosemirror-markdown';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Table from '@tiptap/extension-table';
@@ -41,7 +42,19 @@ function resolveImageSrc(src: string, documentDirUri: string): string {
 
 const LocalImage = Image.extend({
   name: 'localImage',
-  addStorage() { return { documentDirUri: '' }; },
+  inline() { return true; },
+  group() { return 'inline'; },
+  addStorage() {
+    return {
+      documentDirUri: '',
+      markdown: {
+        serialize: defaultMarkdownSerializer.nodes.image,
+        parse: {
+          // handled by markdown-it
+        },
+      },
+    };
+  },
   renderHTML({ node, HTMLAttributes }) {
     const originalSrc = node.attrs.src ?? '';
     const resolved = resolveImageSrc(originalSrc, this.storage.documentDirUri);
@@ -88,7 +101,7 @@ export function createEditor(element: HTMLElement): Editor {
       }),
       Markdown.configure({
         html: true,
-        tightLists: true,
+        tightLists: false,
         bulletListMarker: '-',
         transformPastedText: true,
         transformCopiedText: false,
