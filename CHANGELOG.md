@@ -4,6 +4,12 @@ All notable changes to the LiveMarkdown extension are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-03-31
+
+# Features
+
+- Three-way merge for markdown round-trip sync — preserves original formatting when the webview sends edits back, preventing unwanted whitespace and syntax changes
+
 ## [0.4.2] - 2026-03-22
 
 # Changed
@@ -87,6 +93,7 @@ Initial release.
 - Extension icon, licence, and install script
 - Full theme integration via `var(--vscode-*)` CSS variables
 
+[0.5.0]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.0.3...v0.4.0
