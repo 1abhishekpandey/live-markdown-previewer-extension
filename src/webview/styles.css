@@ -1114,3 +1114,85 @@ html, body {
 .llm-selection-plus:hover {
   transform: scale(1.15);
 }
+
+/* Title-bar toggle button, mirrors .review-toggle positioning. */
+.llm-toggle {
+  position: fixed;
+  top: 8px;
+  right: 200px;
+  z-index: 40;
+  padding: 4px 10px;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.llm-toggle:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.3));
+}
+
+/* Row 2: Copy all + Clear all action row. */
+.llm-bar {
+  position: fixed;
+  top: 36px;
+  right: 200px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.llm-actions-row {
+  display: flex;
+  gap: 6px;
+}
+
+.llm-copy-all,
+.llm-clear-all {
+  padding: 4px 8px;
+  background: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.llm-copy-all:hover,
+.llm-clear-all:hover {
+  background: var(--vscode-button-hoverBackground, #005a9e);
+}
+
+.llm-clear-all {
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.3));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+}
+
+/* Transient error banner for mode-mutex rejections. */
+.llm-error-banner {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 8px 12px;
+  background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Commented line is clickable so the cursor should reflect that. */
+.llm-line-commented {
+  cursor: pointer;
+}

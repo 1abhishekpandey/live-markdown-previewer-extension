@@ -262,7 +262,26 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	context.subscriptions.push(disposable, autoOpenDisposable, tabChangeDisposable, toggleCmd);
+	// LLM-Assist toggle command. Looks up the active markdown editor's webview
+	// and posts a toggle message to it. Silent no-op if there is no active
+	// LiveMarkdown editor.
+	const toggleLlmAssistCmd = vscode.commands.registerCommand(
+		'liveMarkdown.toggleLlmAssist',
+		() => {
+			const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+			if (!activeTab) return;
+			const input = activeTab.input;
+			if (!(input instanceof vscode.TabInputCustom) || input.viewType !== 'liveMarkdown.markdownEditor') {
+				return;
+			}
+			const docUri = input.uri.toString();
+			const webview = provider.getWebviewForUri(docUri);
+			if (!webview) return;
+			webview.postMessage({ type: 'toggleLlmAssist' });
+		}
+	);
+
+	context.subscriptions.push(disposable, autoOpenDisposable, tabChangeDisposable, toggleCmd, toggleLlmAssistCmd);
 }
 
 export function deactivate() {}

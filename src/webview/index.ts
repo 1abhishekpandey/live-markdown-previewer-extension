@@ -6,7 +6,11 @@ import { PendingCommentStore } from './pendingCommentStore';
 import { CommentToggle } from './commentToggle';
 import { CommentPanel } from './commentPanel';
 import { createCommentIndicatorPlugin, updateCommentIndicatorState, getCommentIndicatorState } from './commentIndicator';
-import { buildLineMap } from './lineMap';
+import { buildLineMap, type LineMap } from './lineMap';
+import { LlmCommentStore } from './llmCommentStore';
+import { LlmToggle } from './llmToggle';
+import { LlmSelectionAnchor } from './llmSelectionAnchor';
+import { dispatchLlmMessage, dispatchLlmEditorClick } from './llmDispatch';
 import type { ExtensionToWebviewMessage, CommentDataMessage, ReviewSubmitResultMessage, CommentErrorMessage, LineMappingResultMessage, SavedPendingQueueMessage } from '../sync/syncProtocol';
 import type { CommentThread } from '../sync/commentTypes';
 
@@ -41,6 +45,18 @@ window.addEventListener('message', (event: MessageEvent) => {
     // Debug overlay hidden — logic retained in syncClient.updateDebugOverlay
     return;
   }
+
+  // LLM-Assist: cache workspaceRelativePath from init, then fall through
+  // so syncClient still handles the init message below.
+  if (data.type === 'init') {
+    const path = (data as { workspaceRelativePath?: unknown }).workspaceRelativePath;
+    if (typeof path === 'string') {
+      llmToggle.workspaceRelativePath = path;
+    }
+  }
+
+  // LLM-Assist: toggle command routed from the extension host
+  if (dispatchLlmMessage(data, llmToggle)) return;
 
   // Comment system message routing
   if (data.type === 'commentData') {
@@ -144,11 +160,58 @@ copyToggle.addEventListener('click', () => {
 // Comment system
 const pendingStore = new PendingCommentStore(vscode);
 const commentToggle = new CommentToggle(editor, vscode, pendingStore);
-const commentPanel = new CommentPanel(editorElement, pendingStore, vscode);
+const llmStore = new LlmCommentStore();
+const commentPanel = new CommentPanel(editorElement, pendingStore, vscode, llmStore, editor);
 
 // Register ProseMirror plugin for comment indicators
 const commentPlugin = createCommentIndicatorPlugin();
 editor.registerPlugin(commentPlugin);
+
+// LLM-Assist mount. The rebuildLlmLineMap closure captures `editor` + the
+// markdown-it parser so LlmToggle can republish plugin state without
+// re-deriving these at activate time.
+let llmLineMap: LineMap | null = null;
+const rebuildLlmLineMap = (): void => {
+  const md = (editor.storage as any).markdown?.parser?.md;
+  const markdown = editor.storage.markdown.getMarkdown();
+  llmLineMap = md ? buildLineMap(editor.state.doc, markdown, md) : null;
+};
+
+const llmSelectionAnchor = new LlmSelectionAnchor(
+  editor,
+  llmStore,
+  commentPanel,
+  editorElement,
+  () => llmLineMap,
+);
+
+const llmToggle = new LlmToggle(
+  editor,
+  vscode,
+  llmStore,
+  commentPanel,
+  commentToggle,
+  llmSelectionAnchor,
+  (patch) => {
+    const current = getCommentIndicatorState(editor.view);
+    updateCommentIndicatorState(editor.view, {
+      ...current,
+      llmAssistActive: patch.llmAssistActive ?? current.llmAssistActive ?? false,
+      llmComments: (patch.llmComments as any) ?? current.llmComments ?? [],
+      lineMap: llmLineMap ?? current.lineMap,
+    });
+  },
+  rebuildLlmLineMap,
+);
+
+llmStore.onChange(() => {
+  if (!llmToggle.isActive()) return;
+  const current = getCommentIndicatorState(editor.view);
+  updateCommentIndicatorState(editor.view, {
+    ...current,
+    llmComments: llmStore.getAll(),
+  });
+});
 
 // Track last received threads for badge click lookups
 let lastThreads: CommentThread[] = [];
@@ -325,6 +388,18 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
   e.stopPropagation();
   e.preventDefault();
   commentPanel.openNew(Number(lineNum), null, diffLine);
+});
+
+// LLM-Assist click handler — runs on the same editor element but short-circuits
+// when LLM mode is inactive. Kept in its own listener so the review-mode handler
+// above stays unchanged.
+editorElement?.addEventListener('click', (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+  if (dispatchLlmEditorClick(target, llmToggle, llmStore, commentPanel)) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
 });
 
 syncClient.init();

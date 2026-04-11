@@ -251,34 +251,34 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/extension.test.ts` (extend — I5, I6)
 
 ### Tasks
-- [ ] Task 6.1: Create `LlmToggle` with constructor `(editor, vscode, store, panel, commentToggle)`. DOM: row-1 `<button class="llm-toggle">Assist: Off</button>`, row-2 `<div class="llm-bar"><div class="llm-actions-row"><button class="llm-copy-all">Copy all (0)</button><button class="llm-clear-all">Clear all (0)</button></div></div>`. Action row starts with `display: none`. Expose `toggle()` and `isActive()`. Expose a `workspaceRelativePath` field.
+- [x] Task 6.1: Create `LlmToggle` with constructor `(editor, vscode, store, panel, commentToggle)`. DOM: row-1 `<button class="llm-toggle">Assist: Off</button>`, row-2 `<div class="llm-bar"><div class="llm-actions-row"><button class="llm-copy-all">Copy all (0)</button><button class="llm-clear-all">Clear all (0)</button></div></div>`. Action row starts with `display: none`. Expose `toggle()` and `isActive()`. Expose a `workspaceRelativePath` field.
   - Executor: LLM
   - Verification: `npm test -- llmToggle.test.ts` — T1 (initial state: button `'Assist: Off'`, action row hidden).
-- [ ] Task 6.2: `toggle()` while inactive. If `commentToggle.isActive()` → show a transient error banner `Review mode is active — toggle it off first` and return without state change. Otherwise: build the line map via `buildLineMap(editor.state.doc, markdown, md)` (reusing the path at `index.ts:51-54`), call `updateCommentIndicatorState({ llmAssistActive: true })`, register an `editor.on('update', ...)` listener that rebuilds the line map and re-publishes plugin state on every doc change, set the title-bar button text to `'Assist: On'`, show row-2. Tell `LlmSelectionAnchor` the mode is active.
+- [x] Task 6.2: `toggle()` while inactive. If `commentToggle.isActive()` → show a transient error banner `Review mode is active — toggle it off first` and return without state change. Otherwise: build the line map via `buildLineMap(editor.state.doc, markdown, md)` (reusing the path at `index.ts:51-54`), call `updateCommentIndicatorState({ llmAssistActive: true })`, register an `editor.on('update', ...)` listener that rebuilds the line map and re-publishes plugin state on every doc change, set the title-bar button text to `'Assist: On'`, show row-2. Tell `LlmSelectionAnchor` the mode is active.
   - Executor: LLM
   - Verification: `npm test -- llmToggle.test.ts` — T2 (rejects when Review active; error banner shown; state unchanged), T3 (activate path: `updateCommentIndicatorState({llmAssistActive:true})` called; `editor.on('update', ...)` registered; button text flips).
-- [ ] Task 6.3: `toggle()` while active. `store.clear()`. `editor.commands.clearAllLlmComments()`. `updateCommentIndicatorState({ llmAssistActive: false })`. Detach the update listener. Reset button text. Hide row-2. Tell `LlmSelectionAnchor` the mode is inactive.
+- [x] Task 6.3: `toggle()` while active. `store.clear()`. `editor.commands.clearAllLlmComments()`. `updateCommentIndicatorState({ llmAssistActive: false })`. Detach the update listener. Reset button text. Hide row-2. Tell `LlmSelectionAnchor` the mode is inactive.
   - Executor: LLM
   - Verification: `npm test -- llmToggle.test.ts` — T11 (deactivate path: `store.clear` + `clearAllLlmComments` both called; `llmAssistActive=false`; listener detached; button text `'Assist: Off'`).
-- [ ] Task 6.4: Reactive row-2 labels via `store.onChange`. `Copy all (N)` / `Clear all (N)` where N is `store.getCount()`. Row-2 gets `display: none` when `N === 0`, `display: flex` otherwise. Matches `commentToggle.ts:238-250` / `commentToggle.ts:241`.
+- [x] Task 6.4: Reactive row-2 labels via `store.onChange`. `Copy all (N)` / `Clear all (N)` where N is `store.getCount()`. Row-2 gets `display: none` when `N === 0`, `display: flex` otherwise. Matches `commentToggle.ts:238-250` / `commentToggle.ts:241`.
   - Executor: LLM
   - Verification: `npm test -- llmToggle.test.ts` — T4 (action row hidden when empty), T5 (first add shows row + label `Copy all (1)`), T6 (reactive label `Copy all (3)` → `Copy all (2)`).
-- [ ] Task 6.5: Copy all click. `const payload = store.toPayload(editor, this.workspaceRelativePath)`. If non-empty, `await navigator.clipboard.writeText(payload)`. On resolve, flip button label to `'Copied ✓'` for 1500 ms then restore. On reject, flip to `'Copy failed'` for 3000 ms, `console.warn(err)`. When `payload === ''`, do not call `writeText` and do not flash any label.
+- [x] Task 6.5: Copy all click. `const payload = store.toPayload(editor, this.workspaceRelativePath)`. If non-empty, `await navigator.clipboard.writeText(payload)`. On resolve, flip button label to `'Copied ✓'` for 1500 ms then restore. On reject, flip to `'Copy failed'` for 3000 ms, `console.warn(err)`. When `payload === ''`, do not call `writeText` and do not flash any label.
   - Executor: LLM
   - Verification: `npm test -- llmToggle.test.ts` — T7 (success path with fake timers: label flips to `Copied ✓`, reverts after 1500 ms), T8 (reject path: label flips to `Copy failed`, reverts after 3000 ms, `console.warn` called once), T9 (empty store: `writeText` not called).
-- [ ] Task 6.6: Clear all click. `store.clear()` + `editor.commands.clearAllLlmComments()`. No confirmation prompt.
+- [x] Task 6.6: Clear all click. `store.clear()` + `editor.commands.clearAllLlmComments()`. No confirmation prompt.
   - Executor: LLM
   - Verification: `npm test -- llmToggle.test.ts` — T10 (both calls happen on one click).
-- [ ] Task 6.7: In `src/webview/index.ts`, after the existing Review-mode wiring: instantiate `const llmStore = new LlmCommentStore()`, then `const llmToggle = new LlmToggle(editor, vscode, llmStore, commentPanel, commentToggle)`, then `const llmSelection = new LlmSelectionAnchor(editor, llmStore, commentPanel)`. On `init` message → cache `workspaceRelativePath` on `llmToggle`. On `toggleLlmAssist` message → call `llmToggle.toggle()`. Add DOM click listeners: `[data-llm-comment-id]` → read id from `closest`, `store.get(id)` → `commentPanel.openLlmText(id, spanEl)` (silent return if `get` yields undefined). `.llm-line-commented` → read `data-llm-line`, call `commentPanel.openLlmLine(line1, lineEl)`.
+- [x] Task 6.7: In `src/webview/index.ts`, after the existing Review-mode wiring: instantiate `const llmStore = new LlmCommentStore()`, then `const llmToggle = new LlmToggle(editor, vscode, llmStore, commentPanel, commentToggle)`, then `const llmSelection = new LlmSelectionAnchor(editor, llmStore, commentPanel)`. On `init` message → cache `workspaceRelativePath` on `llmToggle`. On `toggleLlmAssist` message → call `llmToggle.toggle()`. Add DOM click listeners: `[data-llm-comment-id]` → read id from `closest`, `store.get(id)` → `commentPanel.openLlmText(id, spanEl)` (silent return if `get` yields undefined). `.llm-line-commented` → read `data-llm-line`, call `commentPanel.openLlmLine(line1, lineEl)`.
   - Executor: LLM
   - Verification: `npm test -- index.message.test.ts` — T12 (dispatch `{type:'toggleLlmAssist'}` calls `llmToggle.toggle()` once). Also a DOM-click happy-dom test: clicking a `data-llm-comment-id` span calls `panel.openLlmText`; clicking a `.llm-line-commented` node calls `panel.openLlmLine` with the parsed line number.
-- [ ] Task 6.8: In `src/extension.ts` `activate`, register `liveMarkdown.toggleLlmAssist` via `vscode.commands.registerCommand`. The handler uses the new `getWebviewForUri` accessor (added in Phase 1) to find the active webview and posts `{ type: 'toggleLlmAssist' }`. Silent no-op if no active markdown editor. Push the `Disposable` to `context.subscriptions`.
+- [x] Task 6.8: In `src/extension.ts` `activate`, register `liveMarkdown.toggleLlmAssist` via `vscode.commands.registerCommand`. The handler uses the new `getWebviewForUri` accessor (added in Phase 1) to find the active webview and posts `{ type: 'toggleLlmAssist' }`. Silent no-op if no active markdown editor. Push the `Disposable` to `context.subscriptions`.
   - Executor: LLM
   - Verification: `npm test -- extension.test.ts` — I5 (command registered during `activate`; disposable pushed), I6 (handler calls `getWebviewForUri` and posts the message).
-- [ ] Task 6.9: `package.json` — add the command contribution for `liveMarkdown.toggleLlmAssist` (title: `Live Markdown: Toggle LLM-Assist`). No keybinding per HLD V1.
+- [x] Task 6.9: `package.json` — add the command contribution for `liveMarkdown.toggleLlmAssist` (title: `Live Markdown: Toggle LLM-Assist`). No keybinding per HLD V1.
   - Executor: LLM
   - Verification: `npm run build`, `npm run vscode:install`, reload VS Code; command appears in the Command Palette.
-- [ ] Task 6.10: Add `.llm-toggle`, `.llm-bar`, `.llm-actions-row`, and the click-cursor style for `.llm-line-commented` to `styles.css`. Theme-aware via `var(--vscode-*)`.
+- [x] Task 6.10: Add `.llm-toggle`, `.llm-bar`, `.llm-actions-row`, and the click-cursor style for `.llm-line-commented` to `styles.css`. Theme-aware via `var(--vscode-*)`.
   - Executor: LLM
   - Verification: `npm run build` clean; inspect `dist/webview.css`.
 - [ ] Task 6.11: Manual — H3 clipboard reaches the system clipboard. After `npm run vscode:install` + reload: activate LLM-Assist, add one line comment, click `Copy all`, paste into a plain text editor.
@@ -299,12 +299,12 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
   - Time: 3 min
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test -- llmToggle.test.ts` clean (T1–T12).
-- [ ] `npm test -- extension.test.ts` clean (I5, I6).
-- [ ] `npm test -- index.message.test.ts` clean.
-- [ ] H3, H4, H6, H7 all pass.
-- [ ] `npm run build` + `npm run vscode:install` + reload clean; the command appears in the Command Palette.
+- [x] All tasks above complete (LLM tasks). H3, H4, H6, H7 manual checks deferred to the consolidated Phase 7 manual pass.
+- [x] `npm test -- llmToggle.test.ts` clean (12 tests).
+- [x] `npm test -- extension.test.ts` clean (I5 + I6 + three variants — 5 tests).
+- [x] `npm test -- llmDispatch.test.ts` clean (T12 + six DOM click routing tests — 10 tests). Shipped as `llmDispatch.test.ts` rather than `index.message.test.ts` because message + click routing live in the same pure-helper module.
+- [ ] H3, H4, H6, H7 — deferred to consolidated manual pass after Phase 7.
+- [x] `npm run build` clean. `npm run vscode:install` + reload deferred to the manual pass.
 
 ---
 
@@ -349,7 +349,7 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 | Phase 3: Gutter plugin | [x] | LLM branch in commentIndicator, 11 new tests, regression suite still green. |
 | Phase 4: Panel extensions | [x] | LLM mode + openLlmLine/Text/NewText + per-entry actions + parallel onChange. 12 new + 18 regression. |
 | Phase 5: Selection anchor | [x] | Floating + button with right-edge clamp. 6 tests green. Not wired into index.ts until Phase 6. |
-| Phase 6: Toggle + Copy all + command | [ ] | |
+| Phase 6: Toggle + Copy all + command | [x] | LlmToggle + command + wiring + llmDispatch helpers + CSS. 388 tests green. |
 | Phase 7: Integration round-trips | [ ] | |
 
 ## Completion Criteria
