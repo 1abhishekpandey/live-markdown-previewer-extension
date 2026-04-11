@@ -35,8 +35,19 @@ describe('handleWebviewMessage', () => {
     const mgr = new DocumentSyncManager(doc as any, webview as any);
     await mgr.handleWebviewMessage({ type: 'ready' });
     expect(webview.postMessage).toHaveBeenCalledWith({
-      type: 'init', markdown: '# Hello', isReadOnly: false, documentDirUri: '',
+      type: 'init', markdown: '# Hello', isReadOnly: false, documentDirUri: '', workspaceRelativePath: '',
     });
+  });
+
+  // I2: workspaceRelativePath flows through from constructor to init message
+  it('I2: sends workspaceRelativePath in init message when constructor arg is provided', async () => {
+    const webview = makeWebview();
+    const doc = makeDocument('# Hello');
+    const mgr = new DocumentSyncManager(doc as any, webview as any, false, 'webview-uri', 'a/b.md');
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    expect(webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'init', workspaceRelativePath: 'a/b.md' })
+    );
   });
 
   it('sends isReadOnly: true in init when constructed with isReadOnly', async () => {

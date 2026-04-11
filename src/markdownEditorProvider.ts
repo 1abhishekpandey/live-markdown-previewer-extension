@@ -59,7 +59,8 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     // Create sync manager
     const documentDir = vscode.Uri.joinPath(document.uri, '..');
     const documentDirUri = webview.asWebviewUri(documentDir).toString();
-    const syncManager = new DocumentSyncManager(document, webview, false, documentDirUri);
+    const workspaceRelativePath = vscode.workspace.asRelativePath(document.uri, false);
+    const syncManager = new DocumentSyncManager(document, webview, false, documentDirUri, workspaceRelativePath);
 
     // Create comment handler
     const cwd = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? '';
@@ -170,6 +171,10 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider {
     const a = this.pendingRawAnchor;
     this.pendingRawAnchor = null;
     return a;
+  }
+
+  getWebviewForUri(docUri: string): vscode.Webview | null {
+    return this.anchorStates.get(docUri)?.webview ?? null;
   }
 
 }

@@ -78,24 +78,24 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/documentSync.test.ts` (extend — assert init message carries `workspaceRelativePath`)
 
 ### Tasks
-- [ ] Task 1.1: Create `LlmCommentStore` with `add`, `remove`, `update`, `clear`, `get`, `getAll`, `getCount`, `getForLine`, `onChange`. `getAll` returns a snapshot copy. `getForLine` returns line comments first, then text comments sorted by `createdAt`. Every mutation calls `notify()`; no `postMessage({type: 'savePendingQueue'})` exists anywhere in the file.
+- [x] Task 1.1: Create `LlmCommentStore` with `add`, `remove`, `update`, `clear`, `get`, `getAll`, `getCount`, `getForLine`, `onChange`. `getAll` returns a snapshot copy. `getForLine` returns line comments first, then text comments sorted by `createdAt`. Every mutation calls `notify()`; no `postMessage({type: 'savePendingQueue'})` exists anywhere in the file.
   - Executor: LLM
   - Verification: `npm test -- llmCommentStore.test.ts` — S1 (add fires onChange), S2 (remove unknown id is silent no-op but still notifies), S3 (update preserves other fields), S4 (getForLine ordering), S5 (getForLine inclusive bounds), S6 (getAll snapshot isolation), S7 (clear empties), S8 (spy on `acquireVsCodeApi().postMessage` never sees `savePendingQueue`).
-- [ ] Task 1.2: Add `toPayload(editor, workspaceRelativePath)` to the store. Sort by `startLine` asc, then `kind: 'line'` before `kind: 'text'`, then `createdAt` asc. `File:` header uses the path verbatim. Empty store returns `''`. Single comment uses `Comment:`, multi uses `Comment-1:`, `Comment-2:`, etc. Blocks separated by exactly `\n\n-----\n\n`. Triple-quote fences are inserted verbatim — no escaping of inner backticks, code fences, table pipes, or `>` lines.
+- [x] Task 1.2: Add `toPayload(editor, workspaceRelativePath)` to the store. Sort by `startLine` asc, then `kind: 'line'` before `kind: 'text'`, then `createdAt` asc. `File:` header uses the path verbatim. Empty store returns `''`. Single comment uses `Comment:`, multi uses `Comment-1:`, `Comment-2:`, etc. Blocks separated by exactly `\n\n-----\n\n`. Triple-quote fences are inserted verbatim — no escaping of inner backticks, code fences, table pipes, or `>` lines.
   - Executor: LLM
   - Verification: `npm test -- llmCommentStore.test.ts` — P1 (empty), P2 (single matches LLD "Example (single comment)" byte-for-byte), P3 (two-comment numbering), P4 (two-comment ordering by startLine), P5 (same-line tie-breaker: line, text@100, text@200), P6 (multi-line range header reads `Lines 5-7`), P7 (triple-quote survives backticks and table pipes), P9 (`workspaceRelativePath` is first-line verbatim), P10 (exactly two `-----` separators for three blocks). P8 (live quoted text) and the `kind: 'text'` stripped-marks edge case are deferred to Phase 7 (they need a real TipTap editor).
-- [ ] Task 1.3: Add optional `workspaceRelativePath?: string` to `InitMessage` in `src/sync/syncProtocol.ts`. No new message types; the field is additive and optional so older handlers ignore it.
+- [x] Task 1.3: Add optional `workspaceRelativePath?: string` to `InitMessage` in `src/sync/syncProtocol.ts`. No new message types; the field is additive and optional so older handlers ignore it.
   - Executor: LLM
   - Verification: `npm run check-types` clean; the field appears in the union; no other message shape changes.
-- [ ] Task 1.4: In `MarkdownEditorProvider.resolveCustomTextEditor`, compute `workspaceRelativePath = vscode.workspace.asRelativePath(document.uri, false)` and pass it into `DocumentSyncManager`. In `DocumentSyncManager`, populate it on the init message. Add a `getWebviewForUri(docUri: string): Webview | undefined` accessor on `MarkdownEditorProvider` (a read of `anchorStates.get(docUri)?.webview`) — Phase 6 needs it.
+- [x] Task 1.4: In `MarkdownEditorProvider.resolveCustomTextEditor`, compute `workspaceRelativePath = vscode.workspace.asRelativePath(document.uri, false)` and pass it into `DocumentSyncManager`. In `DocumentSyncManager`, populate it on the init message. Add a `getWebviewForUri(docUri: string): Webview | undefined` accessor on `MarkdownEditorProvider` (a read of `anchorStates.get(docUri)?.webview`) — Phase 6 needs it.
   - Executor: LLM
   - Verification: `npm test -- markdownEditorProvider.test.ts` — I1 (`asRelativePath` called with `(documentUri, false)`, not the default `true`). `npm test -- documentSync.test.ts` — I2 (init message posted to webview carries `workspaceRelativePath: 'a/b.md'`). `npm run check-types` clean.
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test` clean (new store + init tests + existing suite).
-- [ ] `npm run check-types` clean.
-- [ ] `npm run build` produces both `dist/extension.js` and `dist/webview.js` with no warnings about the new exports.
+- [x] All tasks above complete.
+- [x] `npm test` clean (new store + init tests + existing suite).
+- [x] `npm run check-types` clean.
+- [x] `npm run build` produces both `dist/extension.js` and `dist/webview.js` with no warnings about the new exports.
 
 ---
 
@@ -344,7 +344,7 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 | Phase | Status | Notes |
 |---|---|---|
 | Phase 0: Validation | [x] | All five spikes complete; contracts Verified in LLD |
-| Phase 1: Store + init-path piping | [ ] | |
+| Phase 1: Store + init-path piping | [x] | Store, payload, init field and provider wiring landed. 325 tests green. |
 | Phase 2: TipTap mark | [ ] | |
 | Phase 3: Gutter plugin | [ ] | |
 | Phase 4: Panel extensions | [ ] | |

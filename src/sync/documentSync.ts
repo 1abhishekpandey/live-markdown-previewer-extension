@@ -11,14 +11,16 @@ export class DocumentSyncManager {
   private webview: vscode.Webview;
   private readonly isReadOnly: boolean;
   private readonly documentDirUri: string;
+  private readonly workspaceRelativePath: string;
   // Serialize async message handling so edits land before subsequent undo/redo/save
   private messageQueue: Promise<void> = Promise.resolve();
 
-  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false, documentDirUri: string = '') {
+  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false, documentDirUri: string = '', workspaceRelativePath: string = '') {
     this.document = document;
     this.webview = webview;
     this.isReadOnly = isReadOnly;
     this.documentDirUri = documentDirUri;
+    this.workspaceRelativePath = workspaceRelativePath;
   }
 
   async handleWebviewMessage(msg: WebviewToExtensionMessage): Promise<void> {
@@ -35,7 +37,7 @@ export class DocumentSyncManager {
     switch (msg.type) {
       case 'ready':
         this.originalContent = this.document.getText();
-        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly, documentDirUri: this.documentDirUri });
+        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly, documentDirUri: this.documentDirUri, workspaceRelativePath: this.workspaceRelativePath });
         break;
 
       case 'edit':
