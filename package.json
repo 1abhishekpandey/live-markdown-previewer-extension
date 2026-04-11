@@ -3,7 +3,7 @@
   "name": "live-markdown",
   "displayName": "LiveMarkdown",
   "description": "Live WYSIWYG markdown editor for VS Code",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "engines": {
     "vscode": "^1.96.0"
