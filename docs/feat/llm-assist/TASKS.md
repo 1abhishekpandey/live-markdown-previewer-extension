@@ -212,16 +212,16 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/llmSelectionAnchor.test.ts` (new, happy-dom)
 
 ### Tasks
-- [ ] Task 5.1: Create `LlmSelectionAnchor` with constructor `(editor, store, panel)`. On construction, append a `<button class="llm-selection-plus">+</button>` to `document.body`. Register a `selectionchange` listener on `document`. Maintain an `llmAssistActive` flag updated via a setter the Phase 6 toggle will call.
+- [x] Task 5.1: Create `LlmSelectionAnchor` with constructor `(editor, store, panel)`. On construction, append a `<button class="llm-selection-plus">+</button>` to `document.body`. Register a `selectionchange` listener on `document`. Maintain an `llmAssistActive` flag updated via a setter the Phase 6 toggle will call.
   - Executor: LLM
   - Verification: `npm test -- llmSelectionAnchor.test.ts` — A1 (hidden when `llmAssistActive === false` even with a real selection).
-- [ ] Task 5.2: Hide the button on `selectionchange` when any of: `llmAssistActive === false`, `window.getSelection()` is null or collapsed, the selection range's `commonAncestorContainer` is outside the editor element. Otherwise compute screen coords via a new `positionNearSelection(btn, editor)` helper (a copy of `positionOverlay` from `linkDialog.ts:20-36`, renamed, with a right-edge clamp: if `btn.left + btn.width > window.innerWidth - 16`, set `left = window.innerWidth - btn.width - 16`).
+- [x] Task 5.2: Hide the button on `selectionchange` when any of: `llmAssistActive === false`, `window.getSelection()` is null or collapsed, the selection range's `commonAncestorContainer` is outside the editor element. Otherwise compute screen coords via a new `positionNearSelection(btn, editor)` helper (a copy of `positionOverlay` from `linkDialog.ts:20-36`, renamed, with a right-edge clamp: if `btn.left + btn.width > window.innerWidth - 16`, set `left = window.innerWidth - btn.width - 16`).
   - Executor: LLM
   - Verification: `npm test -- llmSelectionAnchor.test.ts` — A2 (collapsed selection keeps it hidden), A3 (selection outside the editor keeps it hidden), A4 (right-edge clamp).
-- [ ] Task 5.3: Click handler. Read `editor.view.state.selection.from/to`, resolve start and end source lines via `findLineForPos(lineMap, from)` and `findLineForPos(lineMap, to - 1)`, convert both to 1-indexed. Generate a `commentId` (same helper the store uses). Apply the mark immediately via `editor.chain().focus().setLlmComment({ commentId }).run()`. Open the panel via `panel.openLlmNewText(commentId, anchorEl)` where `anchorEl` is the first rendered span carrying the new id. On panel save, the store records `{ id: commentId, kind: 'text', startLine, endLine, body, createdAt }`. On panel cancel, the panel's `openLlmNewText` close path runs `unsetLlmCommentById(commentId)` (wired in Phase 4).
+- [x] Task 5.3: Click handler. Read `editor.view.state.selection.from/to`, resolve start and end source lines via `findLineForPos(lineMap, from)` and `findLineForPos(lineMap, to - 1)`, convert both to 1-indexed. Generate a `commentId` (same helper the store uses). Apply the mark immediately via `editor.chain().focus().setLlmComment({ commentId }).run()`. Open the panel via `panel.openLlmNewText(commentId, anchorEl)` where `anchorEl` is the first rendered span carrying the new id. On panel save, the store records `{ id: commentId, kind: 'text', startLine, endLine, body, createdAt }`. On panel cancel, the panel's `openLlmNewText` close path runs `unsetLlmCommentById(commentId)` (wired in Phase 4).
   - Executor: LLM
   - Verification: `npm test -- llmSelectionAnchor.test.ts` — A5 (click triggers `setLlmComment` and `panel.openLlmNewText` once each with the same generated id), A6 (cancel-without-save calls `unsetLlmCommentById` — verified via the Phase 4 panel wiring; the test spies on `unsetLlmCommentById`).
-- [ ] Task 5.4: Add `.llm-selection-plus` to `styles.css`. Uses `position: fixed`, theme-aware colours via `var(--vscode-button-background)` / `var(--vscode-button-foreground)`. Hidden by default via `display: none`; visible only when the anchor calls `show()`.
+- [x] Task 5.4: Add `.llm-selection-plus` to `styles.css`. Uses `position: fixed`, theme-aware colours via `var(--vscode-button-background)` / `var(--vscode-button-foreground)`. Hidden by default via `display: none`; visible only when the anchor calls `show()`.
   - Executor: LLM
   - Verification: `npm run build` clean.
 - [ ] Task 5.5: Manual — H2 selection anchor positioning. Open a doc with a long paragraph that wraps near the right edge of the editor. Activate LLM-Assist. Select text near the left edge, then near the right edge, then a multi-line span that crosses two paragraphs. Click the `+` on each.
@@ -230,10 +230,10 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
   - Time: 5 min
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test -- llmSelectionAnchor.test.ts` clean (A1–A6).
-- [ ] H2 passes.
-- [ ] `npm run build` and `npm run vscode:install` clean.
+- [x] All tasks above complete (LLM tasks). H2 manual check deferred to the consolidated Phase 7 manual pass.
+- [x] `npm test -- llmSelectionAnchor.test.ts` clean (A1–A6).
+- [ ] H2 passes — deferred to consolidated manual pass after Phase 7.
+- [x] `npm run build` clean. `vscode:install` deferred until Phase 6 lands the command so the manual pass can reach the toggle via the palette.
 
 ---
 
@@ -348,7 +348,7 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 | Phase 2: TipTap mark | [x] | LlmCommentMark with stacking + empty markdown serializer. 8 tests green. |
 | Phase 3: Gutter plugin | [x] | LLM branch in commentIndicator, 11 new tests, regression suite still green. |
 | Phase 4: Panel extensions | [x] | LLM mode + openLlmLine/Text/NewText + per-entry actions + parallel onChange. 12 new + 18 regression. |
-| Phase 5: Selection anchor | [ ] | |
+| Phase 5: Selection anchor | [x] | Floating + button with right-edge clamp. 6 tests green. Not wired into index.ts until Phase 6. |
 | Phase 6: Toggle + Copy all + command | [ ] | |
 | Phase 7: Integration round-trips | [ ] | |
 

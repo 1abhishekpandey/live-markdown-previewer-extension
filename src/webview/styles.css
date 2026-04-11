@@ -1089,3 +1089,28 @@ html, body {
 .llm-line-commented[data-llm-count]:hover::after {
   opacity: 1;
 }
+
+/* Floating + button for LLM-Assist selection anchor */
+.llm-selection-plus {
+  position: fixed;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border: none;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s;
+}
+
+.llm-selection-plus:hover {
+  transform: scale(1.15);
+}
