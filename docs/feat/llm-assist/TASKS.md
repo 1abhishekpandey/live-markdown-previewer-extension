@@ -109,16 +109,16 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/llmCommentMark.test.ts` (new)
 
 ### Tasks
-- [ ] Task 2.1: Create `llmCommentMark.ts`. `name: 'llmComment'`, `excludes: ''`, `inclusive: false`. `addAttributes({ commentId })` stored as `data-llm-comment-id`. `parseHTML` matches `span[data-llm-comment-id]`. `renderHTML` emits `['span', { class: 'llm-comment-mark', 'data-llm-comment-id': commentId }, 0]`. `addCommands`: `setLlmComment({ commentId })` and `unsetLlmCommentById(id)` (walks via `tr.doc.descendants` and removes every range with that id in one transaction). Plus `clearAllLlmComments()` which strips every `llmComment` mark in a single transaction (LlmToggle's Clear-all path needs this in Phase 6, but the command belongs on the mark's extension).
+- [x] Task 2.1: Create `llmCommentMark.ts`. `name: 'llmComment'`, `excludes: ''`, `inclusive: false`. `addAttributes({ commentId })` stored as `data-llm-comment-id`. `parseHTML` matches `span[data-llm-comment-id]`. `renderHTML` emits `['span', { class: 'llm-comment-mark', 'data-llm-comment-id': commentId }, 0]`. `addCommands`: `setLlmComment({ commentId })` and `unsetLlmCommentById(id)` (walks via `tr.doc.descendants` and removes every range with that id in one transaction). Plus `clearAllLlmComments()` which strips every `llmComment` mark in a single transaction (LlmToggle's Clear-all path needs this in Phase 6, but the command belongs on the mark's extension).
   - Executor: LLM
   - Verification: `npm test -- llmCommentMark.test.ts` — M1 (schema flags), M2 (wrap selection renders `<span data-llm-comment-id="A">world</span>`), M3 (collapsed selection is a no-op), M4 (overlap stacks; `closest('[data-llm-comment-id]')` inside the overlap returns the innermost mark), M5 (`unsetLlmCommentById('A')` removes A, leaves B), M6 (`parseHTML` round-trips an HTML-seeded doc into a mark with the correct `commentId`).
-- [ ] Task 2.2: Add `addStorage` with `{ markdown: { serialize: { open: '', close: '', mixable: true, expelEnclosingWhitespace: false } } }`. This is the single contract with `tiptap-markdown` that keeps marks out of the saved file.
+- [x] Task 2.2: Add `addStorage` with `{ markdown: { serialize: { open: '', close: '', mixable: true, expelEnclosingWhitespace: false } } }`. This is the single contract with `tiptap-markdown` that keeps marks out of the saved file.
   - Executor: LLM
   - Verification: `npm test -- llmCommentMark.test.ts` — M7 (`editor.storage.markdown.getMarkdown()` returns the same string for a doc with `llmComment` marks as for the same doc without them).
-- [ ] Task 2.3: Register `LlmCommentMark` in `createEditor`'s extension list alongside `Link`, `Markdown`, etc. The mark must be part of the schema at editor construction time, not added at mount time.
+- [x] Task 2.3: Register `LlmCommentMark` in `createEditor`'s extension list alongside `Link`, `Markdown`, etc. The mark must be part of the schema at editor construction time, not added at mount time.
   - Executor: LLM
   - Verification: `npm run check-types` clean. `npm test` — existing editor-construction tests still green.
-- [ ] Task 2.4: Add `.llm-comment-mark` to `src/webview/styles.css` using `var(--vscode-editor-findMatchHighlightBackground)` (or the nearest theme-safe variable). Keep the rule scoped to the webview element.
+- [x] Task 2.4: Add `.llm-comment-mark` to `src/webview/styles.css` using `var(--vscode-editor-findMatchHighlightBackground)` (or the nearest theme-safe variable). Keep the rule scoped to the webview element.
   - Executor: LLM
   - Verification: `npm run build` clean; inspect `dist/webview.css` to confirm the rule is present.
 - [ ] Task 2.5: Manual — H5 save regression. Run `npm run vscode:install`, reload VS Code, open a markdown doc in the Extension Development Host, activate LLM-Assist via the command palette (wired in Phase 6; for this phase, apply a mark programmatically via the dev console), hit `Cmd+S`, open the saved file in a plain text editor. Confirm NO `<span data-llm-comment-id>` appears. (If Phase 6 has not landed yet, fall back to running a happy-dom integration test that calls `editor.storage.markdown.getMarkdown()` after applying a mark.)
@@ -127,10 +127,10 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
   - Time: 3 min
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test -- llmCommentMark.test.ts` clean (M1–M7).
-- [ ] `npm run check-types` clean.
-- [ ] H5 passes.
+- [x] All tasks above complete (LLM tasks). H5 manual check deferred to the consolidated Phase 7 manual pass.
+- [x] `npm test -- llmCommentMark.test.ts` clean (M1–M7, plus a clearAllLlmComments extra — 8 tests).
+- [x] `npm run check-types` clean.
+- [ ] H5 passes — deferred to consolidated manual pass after Phase 7.
 
 ---
 
@@ -143,16 +143,16 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/llmGutterPlugin.test.ts` (new)
 
 ### Tasks
-- [ ] Task 3.1: Extend `CommentIndicatorState` with `llmAssistActive: boolean` and `llmComments: LlmComment[]`. Extend `updateCommentIndicatorState` to accept these fields. `buildDecorations` early-out returns empty when both `reviewMode` and `llmAssistActive` are false. The two branches are exclusive — review-mode branch runs only when `reviewMode === true`, LLM-Assist branch runs only when `llmAssistActive === true`.
+- [x] Task 3.1: Extend `CommentIndicatorState` with `llmAssistActive: boolean` and `llmComments: LlmComment[]`. Extend `updateCommentIndicatorState` to accept these fields. `buildDecorations` early-out returns empty when both `reviewMode` and `llmAssistActive` are false. The two branches are exclusive — review-mode branch runs only when `reviewMode === true`, LLM-Assist branch runs only when `llmAssistActive === true`.
   - Executor: LLM
   - Verification: `npm test -- llmGutterPlugin.test.ts` — G1 (both flags off ⇒ empty decoration set), G2 (LLM on, Review off ⇒ only `llm-line-*` classes), G3 (Review on, LLM off ⇒ only review-mode classes).
-- [ ] Task 3.2: Walk `lineMap.posToLineRange`. For each entry, call `doc.nodeAt(pos)`. Skip if the node is null or its type name is not in the commentable set: `paragraph`, `heading`, `list_item`, `task_item`, `code_block`, `table`. Skip `blockquote`, `bullet_list`, `ordered_list`, `task_list`, `table_row`, `table_cell`, `table_header`, `horizontal_rule`. Convert the 0-indexed `startLine` to 1-indexed via `line1 = startLine + 1` at the boundary.
+- [x] Task 3.2: Walk `lineMap.posToLineRange`. For each entry, call `doc.nodeAt(pos)`. Skip if the node is null or its type name is not in the commentable set: `paragraph`, `heading`, `list_item`, `task_item`, `code_block`, `table`. Skip `blockquote`, `bullet_list`, `ordered_list`, `task_list`, `table_row`, `table_cell`, `table_header`, `horizontal_rule`. Convert the 0-indexed `startLine` to 1-indexed via `line1 = startLine + 1` at the boundary.
   - Executor: LLM
   - Verification: `npm test -- llmGutterPlugin.test.ts` — G4 (heading + paragraph both decorated), G5 (list items decorated, `bullet_list` is not), G6 (table decorated whole, cells are not), G7 (blockquote container skipped, inner paragraph decorated), G8 (horizontal rule zero decorations), G11 (1-indexed conversion verified).
-- [ ] Task 3.3: For each commentable line, compute `count = llmComments.filter(c => c.startLine <= line1 && line1 <= c.endLine).length`. Emit `Decoration.node(pos, pos + node.nodeSize, ...)`. When `count === 0`: class `llm-line-commentable`, no data attrs. When `count ≥ 1`: class `llm-line-commented`, `data-llm-count="${count}"`, `data-llm-line="${line1}"`.
+- [x] Task 3.3: For each commentable line, compute `count = llmComments.filter(c => c.startLine <= line1 && line1 <= c.endLine).length`. Emit `Decoration.node(pos, pos + node.nodeSize, ...)`. When `count === 0`: class `llm-line-commentable`, no data attrs. When `count ≥ 1`: class `llm-line-commented`, `data-llm-count="${count}"`, `data-llm-line="${line1}"`.
   - Executor: LLM
   - Verification: `npm test -- llmGutterPlugin.test.ts` — G9 (one line comment + two text comments on L2 ⇒ `data-llm-count="3"`, `data-llm-line="2"`), G10 (`store.onChange` after `store.add` re-renders the decoration from commentable to commented).
-- [ ] Task 3.4: Add `.llm-line-commentable:hover::after` (renders `+`) and `.llm-line-commented::after { content: attr(data-llm-count); }` (renders the count badge) to `styles.css`. Use `var(--vscode-editorLineNumber-activeForeground)` and `var(--vscode-badge-background)` / `var(--vscode-badge-foreground)` for theming. Position in the left margin, matching the existing review-mode badge pattern at `commentIndicator.ts:109-128`.
+- [x] Task 3.4: Add `.llm-line-commentable:hover::after` (renders `+`) and `.llm-line-commented::after { content: attr(data-llm-count); }` (renders the count badge) to `styles.css`. Use `var(--vscode-editorLineNumber-activeForeground)` and `var(--vscode-badge-background)` / `var(--vscode-badge-foreground)` for theming. Position in the left margin, matching the existing review-mode badge pattern at `commentIndicator.ts:109-128`.
   - Executor: LLM
   - Verification: `npm run build` clean; inspect `dist/webview.css` for the two rules.
 - [ ] Task 3.5: Manual — H1 hover affordance. Open a doc with one heading, two paragraphs, a list with two items, a 2x2 GFM table, a blockquote with `> inner`, and a horizontal rule. Activate LLM-Assist (via a dev console call in this phase, or the command from Phase 6). Hover each element in turn.
@@ -161,10 +161,10 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
   - Time: 5 min
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test -- llmGutterPlugin.test.ts` clean (G1–G11).
-- [ ] H1 passes.
-- [ ] The existing review-mode `commentIndicator.test.ts` suite still passes (regression guard).
+- [x] All tasks above complete (LLM tasks). H1 manual check deferred to the consolidated Phase 7 manual pass.
+- [x] `npm test -- llmGutterPlugin.test.ts` clean (G1–G11).
+- [ ] H1 passes — deferred to consolidated manual pass after Phase 7.
+- [x] The existing review-mode `commentIndicator.test.ts` suite still passes (regression guard — 10/10 green).
 
 ---
 
@@ -345,8 +345,8 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 |---|---|---|
 | Phase 0: Validation | [x] | All five spikes complete; contracts Verified in LLD |
 | Phase 1: Store + init-path piping | [x] | Store, payload, init field and provider wiring landed. 325 tests green. |
-| Phase 2: TipTap mark | [ ] | |
-| Phase 3: Gutter plugin | [ ] | |
+| Phase 2: TipTap mark | [x] | LlmCommentMark with stacking + empty markdown serializer. 8 tests green. |
+| Phase 3: Gutter plugin | [x] | LLM branch in commentIndicator, 11 new tests, regression suite still green. |
 | Phase 4: Panel extensions | [ ] | |
 | Phase 5: Selection anchor | [ ] | |
 | Phase 6: Toggle + Copy all + command | [ ] | |

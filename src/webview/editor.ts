@@ -16,6 +16,7 @@ import { LinkDialogExtension } from './linkDialog';
 import { SearchBarExtension } from './searchBar';
 import { GfmAlertExtension } from './gfmAlert';
 import { CopyToolbarExtension } from './copyToolbar';
+import { LlmCommentMark } from './llmCommentMark';
 
 const lowlight = createLowlight(common);
 
@@ -118,6 +119,7 @@ export function createEditor(element: HTMLElement): Editor {
       GfmAlertExtension,
       CopyToolbarExtension,
       LocalImage,
+      LlmCommentMark,
     ],
     editorProps: {
       attributes: {

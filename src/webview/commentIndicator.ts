@@ -5,6 +5,7 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import type { CommentThread, PendingComment } from '../sync/commentTypes';
 import type { LineMap } from './lineMap';
 import { findPosForLine } from './lineMap';
+import type { LlmComment } from './llmCommentStore';
 
 export interface CommentIndicatorState {
   reviewMode: boolean;
@@ -13,6 +14,8 @@ export interface CommentIndicatorState {
   threads: CommentThread[];
   pendingComments: PendingComment[];
   lineMap: LineMap | null;
+  llmAssistActive?: boolean;
+  llmComments?: LlmComment[];
 }
 
 const PLUGIN_KEY = new PluginKey<CommentIndicatorState>('commentIndicator');
@@ -23,6 +26,8 @@ const emptyState: CommentIndicatorState = {
   threads: [],
   pendingComments: [],
   lineMap: null,
+  llmAssistActive: false,
+  llmComments: [],
 };
 
 export function createCommentIndicatorPlugin(): Plugin<CommentIndicatorState> {
@@ -41,7 +46,11 @@ export function createCommentIndicatorPlugin(): Plugin<CommentIndicatorState> {
     props: {
       decorations(state): DecorationSet {
         const pluginState = PLUGIN_KEY.getState(state);
-        if (!pluginState || !pluginState.reviewMode || !pluginState.lineMap) {
+        if (!pluginState || !pluginState.lineMap) {
+          return DecorationSet.empty;
+        }
+        const llmAssistActive = pluginState.llmAssistActive ?? false;
+        if (!pluginState.reviewMode && !llmAssistActive) {
           return DecorationSet.empty;
         }
         return buildDecorations(state.doc, pluginState);
@@ -63,9 +72,20 @@ export function getCommentIndicatorState(view: EditorView): CommentIndicatorStat
 }
 
 function buildDecorations(doc: PmNode, state: CommentIndicatorState): DecorationSet {
-  const decorations: Decoration[] = [];
-  const { lineMap, diffHighlightLines, threads, pendingComments } = state;
+  const { lineMap, diffHighlightLines, threads, pendingComments, reviewMode } = state;
+  const llmAssistActive = state.llmAssistActive ?? false;
+  const llmComments = state.llmComments ?? [];
   if (!lineMap) return DecorationSet.empty;
+
+  // LLM-Assist branch — mutually exclusive with review mode.
+  if (llmAssistActive && !reviewMode) {
+    return buildLlmDecorations(doc, lineMap, llmComments);
+  }
+
+  // Review-mode branch.
+  if (!reviewMode) return DecorationSet.empty;
+
+  const decorations: Decoration[] = [];
 
   // Build lookup sets for lines that already have threads
   const commentedLines = new Set<number>();
@@ -160,6 +180,55 @@ function buildDecorations(doc: PmNode, state: CommentIndicatorState): Decoration
             'data-pending-line': String(pc.workingCopyLine),
             'data-pending-start-line': pc.workingCopyStartLine ? String(pc.workingCopyStartLine) : '',
           } : {}),
+        }),
+      );
+    }
+  }
+
+  return DecorationSet.create(doc, decorations);
+}
+
+const LLM_COMMENTABLE_NODE_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'listItem',
+  'taskItem',
+  'codeBlock',
+  'table',
+]);
+
+function buildLlmDecorations(
+  doc: PmNode,
+  lineMap: LineMap,
+  llmComments: LlmComment[],
+): DecorationSet {
+  const decorations: Decoration[] = [];
+
+  for (const [pos, range] of lineMap.posToLineRange) {
+    const node = doc.nodeAt(pos);
+    if (!node) continue;
+    if (!LLM_COMMENTABLE_NODE_TYPES.has(node.type.name)) continue;
+
+    // Convert 0-indexed to 1-indexed at the boundary.
+    const line1 = range.startLine + 1;
+
+    // Count comments whose range covers this line.
+    const count = llmComments.filter(
+      (c) => c.startLine <= line1 && line1 <= c.endLine,
+    ).length;
+
+    if (count === 0) {
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: 'llm-line-commentable',
+        }),
+      );
+    } else {
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: 'llm-line-commented',
+          'data-llm-count': String(count),
+          'data-llm-line': String(line1),
         }),
       );
     }
