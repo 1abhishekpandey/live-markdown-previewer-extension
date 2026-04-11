@@ -28,11 +28,11 @@ Switch between visual and raw source with `Shift+Cmd+M` (`Ctrl+Shift+M` on Windo
 
 # Undo / Redo / Save
 
-Keyboard shortcuts (`Cmd+Z`, `Cmd+Shift+Z`, `Cmd+S`) are intercepted and forwarded to VS Code's native `TextDocument` history — no separate undo stack.
+TipTap owns undo/redo with a 500 ms new-group delay — consecutive keystrokes batch into one undo step; a pause starts a new group. This matches VS Code's native editor and Microsoft Word. Every keystroke reaches the TextDocument synchronously, so `files.autoSave` fires with no extension-owned delay. `Cmd+S` (`Ctrl+S`) is the only shortcut still forwarded to the extension, for explicit save.
 
 # External Change Sync
 
-Edits from other extensions, git operations, or concurrent tools appear instantly. A version counter prevents echo loops and drops stale messages. Edit sending is adaptively debounced (300 ms default, scaling to 800 ms for large files).
+Edits from other extensions, git operations, or concurrent tools appear instantly. A version counter prevents echo loops and drops stale messages. Incoming external updates are applied without touching the local undo stack, so Cmd+Z always reflects only your own edits.
 
 # Copy Mode
 

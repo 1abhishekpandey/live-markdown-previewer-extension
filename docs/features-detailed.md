@@ -147,9 +147,13 @@ The dialog appears below the current text selection, horizontally centred on the
 | Redo | `Shift+Cmd+Z` | `Shift+Ctrl+Z` |
 | Save | `Cmd+S` | `Ctrl+S` |
 
-TipTap's built-in history is disabled. The webview intercepts these shortcuts, prevents default browser behaviour, and forwards them to the extension. VS Code's native `TextDocument` manages the undo/redo stack, ensuring consistency with the file on disk.
+TipTap's History extension is active with a 500 ms new-group delay (`newGroupDelay: 500`). Consecutive keystrokes batch into one undo group; a ~500 ms pause breaks the group — the same behaviour as VS Code's native editor and Microsoft Word.
 
-Save applies any pending edits to the document and writes the file.
+`Cmd+Z` and `Cmd+Shift+Z` are handled locally by TipTap — there is no round trip to the extension. Every edit dispatches synchronously, so the backing `TextDocument` sees each keystroke immediately and `files.autoSave` fires with no extension-owned delay.
+
+`Cmd+S` is the one shortcut still intercepted: it sends a `save` message to the extension, which flushes the latest content and calls `document.save()`.
+
+**Echo prevention** — the initial `setContent` call and every incoming `externalUpdate` both dispatch with ProseMirror's `addToHistory: false` transaction meta. This means pressing `Cmd+Z` after opening a file does not wipe the document, and edits made by external tools do not pollute the local undo stack.
 
 ---
 
@@ -168,17 +172,9 @@ Two flags prevent infinite sync loops:
 
 Both sides maintain a monotonically increasing version number. Stale messages (version equal to or lower than the current) are silently dropped. This handles out-of-order delivery and rapid edit bursts.
 
-## Adaptive Debouncing
+## Edit Dispatch
 
-Edit messages from the webview are debounced to reduce overhead:
-
-| Document size | Debounce delay |
-| --- | --- |
-| ≤ 30 KB | 300 ms |
-| 30–100 KB | 500 ms |
-| &gt; 100 KB | 800 ms |
-
-If an external update arrives while the debounce timer is active, it is buffered and applied immediately after the pending edit is sent.
+Every `update` event from TipTap posts an `edit` message immediately — there is no timer or batching on the outgoing path. The `TextDocument` therefore stays in sync with the webview on every keystroke.
 
 ## Trailing Whitespace
 

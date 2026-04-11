@@ -2,13 +2,11 @@
 
 LiveMarkdown works well for daily use, but there are rough edges worth knowing about.
 
-# File operations on `.md` files
+# Single-click preview tabs show raw markdown
 
-Once the extension is active, right-clicking an `.md` file in the explorer gives you the WYSIWYG view. To rename or delete, you need to double-click the file first (to focus it in the editor), then select Rename or Delete. This is a limitation of how VS Code's `CustomTextEditorProvider` claims ownership of file types.
+Single-clicking an `.md` file in the Explorer opens a preview tab — VS Code's standard behaviour for uncommitted tabs. The extension deliberately does not auto-swap preview tabs to WYSIWYG, because doing so would steal focus from the Explorer and break native file shortcuts (Enter to rename, Cmd+Delete to trash, F2, Cmd+C/V/X).
 
-# First open requires a toggle
-
-When you open an `.md` file for the very first time after installing, you need to click the "Toggle Raw Markdown" button (or press `Shift+Cmd+M` / `Ctrl+Shift+M`) to activate the visual preview mode. After that first toggle, it works as expected.
+As soon as you commit the tab — by double-clicking it, clicking the tab title, typing into the document, or opening it via Cmd+P — the view swaps to WYSIWYG automatically. No manual toggle is needed.
 
 # Keyboard shortcut conflicts
 
