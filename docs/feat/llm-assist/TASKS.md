@@ -318,23 +318,23 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/integration/toggleOff.test.ts` (new)
 
 ### Tasks
-- [ ] Task 7.1: Line-flow round-trip. Seed `'# Title\n\nFirst paragraph.\n\nSecond paragraph.'`. Activate toggle. Call `panel.openLlmLine(3, fakeAnchorEl)`. Type `'expand this'`, click Save. Mock `navigator.clipboard.writeText`. Click `Copy all`.
+- [x] Task 7.1: Line-flow round-trip. Seed `'# Title\n\nFirst paragraph.\n\nSecond paragraph.'`. Activate toggle. Call `panel.openLlmLine(3, fakeAnchorEl)`. Type `'expand this'`, click Save. Mock `navigator.clipboard.writeText`. Click `Copy all`.
   - Executor: LLM
   - Verification: store has one comment `kind:'line' startLine:3 endLine:3 body:'expand this'`; decoration on line-3 is `llm-line-commented` with `data-llm-count="1"`; captured clipboard string starts with `File: `, contains `Line 3 — Selected text:`, `First paragraph.`, `Comment:`, `expand this` in that order, with triple-quote fences.
-- [ ] Task 7.2: Text-flow round-trip with overlap (also covers payload edge case P8 — live quoted text). Seed paragraph `'The quick brown fox jumps'`. Activate. Wrap `'quick brown'` with id A and add store entry (createdAt 100). Wrap `'brown fox'` with id B and add store entry (createdAt 200). Click `Copy all`.
+- [x] Task 7.2: Text-flow round-trip with overlap (also covers payload edge case P8 — live quoted text). Seed paragraph `'The quick brown fox jumps'`. Activate. Wrap `'quick brown'` with id A and add store entry (createdAt 100). Wrap `'brown fox'` with id B and add store entry (createdAt 200). Click `Copy all`.
   - Executor: LLM
   - Verification: overlap region `'brown'` is wrapped by both ids (nested spans); line-3 decoration reads `data-llm-count="2"`; payload has two blocks in order A → B labelled `Comment-1:`, `Comment-2:`; block A's quoted text is `'quick brown'`, block B's is `'brown fox'` (each block reflects ITS marked range only, not the union).
-- [ ] Task 7.3: Mode mutual exclusion round-trip. Construct toggle, store, plugin with `reviewMode=true` and a seeded review thread. Call `llmToggle.toggle()`. Then call `commentToggle.toggle()` to deactivate Review. Call `llmToggle.toggle()` again.
+- [x] Task 7.3: Mode mutual exclusion round-trip. Construct toggle, store, plugin with `reviewMode=true` and a seeded review thread. Call `llmToggle.toggle()`. Then call `commentToggle.toggle()` to deactivate Review. Call `llmToggle.toggle()` again.
   - Executor: LLM
   - Verification: step-2 keeps `llmAssistActive=false` and shows the error banner; decorations are still review-mode classes only. Step-5 flips `llmAssistActive=true`; decorations are LLM-Assist classes only; zero review-mode classes in the decoration set.
-- [ ] Task 7.4: Toggle-off wipe round-trip. Activate; add one line comment and one text comment (mark applied); confirm the doc HTML contains a `data-llm-comment-id` span. Call `llmToggle.toggle()`.
+- [x] Task 7.4: Toggle-off wipe round-trip. Activate; add one line comment and one text comment (mark applied); confirm the doc HTML contains a `data-llm-comment-id` span. Call `llmToggle.toggle()`.
   - Executor: LLM
   - Verification: `store.getCount() === 0`; no `data-llm-comment-id` survives in the doc HTML; button text `'Assist: Off'`; action row hidden; the update listener registered on activate is detached.
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test` clean (new integration tests + full existing suite).
-- [ ] Final full manual sanity pass: H1–H7 all re-verified after any late conflicts.
+- [x] All tasks above complete.
+- [x] `npm test` clean — 4 new integration tests + full existing suite. 392/392 green across 34 files.
+- [ ] Final full manual sanity pass: H1–H7. Deferred to the consolidated manual pass after all phases land.
 
 ---
 
@@ -350,7 +350,7 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 | Phase 4: Panel extensions | [x] | LLM mode + openLlmLine/Text/NewText + per-entry actions + parallel onChange. 12 new + 18 regression. |
 | Phase 5: Selection anchor | [x] | Floating + button with right-edge clamp. 6 tests green. Not wired into index.ts until Phase 6. |
 | Phase 6: Toggle + Copy all + command | [x] | LlmToggle + command + wiring + llmDispatch helpers + CSS. 388 tests green. |
-| Phase 7: Integration round-trips | [ ] | |
+| Phase 7: Integration round-trips | [x] | 4 integration round-trips across real store + mark + plugin + panel + toggle. 392 tests green. |
 
 ## Completion Criteria
 - [ ] All phases marked complete.
