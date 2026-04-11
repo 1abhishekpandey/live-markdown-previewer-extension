@@ -1,25 +1,52 @@
+import type { Editor } from '@tiptap/core';
 import type { CommentThread, CommentData, PendingComment } from '../sync/commentTypes';
 import type { PendingCommentStore } from './pendingCommentStore';
+import type { LlmComment, LlmCommentStore } from './llmCommentStore';
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
+}
+
+type PanelMode = 'thread' | 'llm-assist';
+type LlmMode = 'line' | 'text' | 'newText';
+
+interface PendingLlmCreation {
+  commentId: string;
+  kind: 'text';
+  startLine: number;
+  endLine: number;
+  createdAt: number;
 }
 
 export class CommentPanel {
   private container: HTMLElement;
   private store: PendingCommentStore;
   private vscode: VsCodeApi;
+  private llmStore: LlmCommentStore | null;
+  private editor: Editor | null;
   private panelEl: HTMLElement | null = null;
   private currentThreadId: number | null = null;
   private currentLine: number | null = null;
   private currentStartLine: number | null = null;
+  private currentLlmMode: LlmMode | null = null;
+  private currentLlmCommentId: string | null = null;
+  private pendingLlmCreation: PendingLlmCreation | null = null;
   private closeHandlers: (() => void)[] = [];
   private storeUnsubscribe: (() => void) | null = null;
+  private llmStoreUnsubscribe: (() => void) | null = null;
 
-  constructor(container: HTMLElement, store: PendingCommentStore, vscode: VsCodeApi) {
+  constructor(
+    container: HTMLElement,
+    store: PendingCommentStore,
+    vscode: VsCodeApi,
+    llmStore: LlmCommentStore | null = null,
+    editor: Editor | null = null,
+  ) {
     this.container = container;
     this.store = store;
     this.vscode = vscode;
+    this.llmStore = llmStore;
+    this.editor = editor;
   }
 
   /** Open panel for an existing comment thread */
@@ -40,6 +67,7 @@ export class CommentPanel {
       pendingComments: pending,
       isNewComment: false,
       threadId: thread.id,
+      mode: 'thread',
     });
 
     this.positionPanel(anchorEl);
@@ -66,6 +94,7 @@ export class CommentPanel {
       pendingComments: pending,
       isNewComment: true,
       threadId: null,
+      mode: 'thread',
     });
 
     this.positionPanel(anchorEl);
@@ -74,7 +103,130 @@ export class CommentPanel {
     this.subscribeToStore();
   }
 
+  /** Open LLM-Assist panel for a line (line-level comment). */
+  openLlmLine(line1: number, anchorEl: HTMLElement): void {
+    if (!this.llmStore) return;
+    this.close();
+    this.currentLine = line1;
+    this.currentStartLine = line1;
+    this.currentLlmMode = 'line';
+    this.currentLlmCommentId = null;
+
+    this.panelEl = this.buildPanel({
+      headerText: this.formatLineHeader(line1, line1),
+      commentCount: this.llmStore.getForLine(line1).length,
+      comments: [],
+      pendingComments: [],
+      isNewComment: false,
+      threadId: null,
+      mode: 'llm-assist',
+    });
+
+    this.positionPanel(anchorEl);
+    this.container.appendChild(this.panelEl);
+    this.registerCloseHandlers();
+    this.subscribeToLlmStore();
+
+    if (this.llmStore.getForLine(line1).length === 0) {
+      const ta = this.panelEl.querySelector('.comment-reply-input') as HTMLTextAreaElement | null;
+      ta?.focus();
+    }
+  }
+
+  /** Open LLM-Assist panel for an existing text-level comment (edit flow). */
+  openLlmText(id: string, anchorEl: HTMLElement): void {
+    if (!this.llmStore) return;
+    const entry = this.llmStore.get(id);
+    if (!entry) return;
+    this.close();
+    this.currentLine = entry.startLine;
+    this.currentStartLine = entry.startLine;
+    this.currentLlmMode = 'text';
+    this.currentLlmCommentId = id;
+
+    const headerText =
+      entry.endLine !== entry.startLine
+        ? this.formatLineHeader(entry.endLine, entry.startLine)
+        : this.formatLineHeader(entry.startLine, entry.startLine);
+
+    this.panelEl = this.buildPanel({
+      headerText,
+      commentCount: this.llmStore.getForLine(entry.startLine).length,
+      comments: [],
+      pendingComments: [],
+      isNewComment: false,
+      threadId: null,
+      mode: 'llm-assist',
+    });
+
+    this.positionPanel(anchorEl);
+    this.container.appendChild(this.panelEl);
+    this.registerCloseHandlers();
+    this.subscribeToLlmStore();
+
+    const ta = this.panelEl.querySelector('.comment-reply-input') as HTMLTextAreaElement | null;
+    if (ta) ta.value = entry.body;
+  }
+
+  /**
+   * Open LLM-Assist panel for a NEW text-level comment. The mark has already been
+   * applied to the selection; the user is about to type the body. If they close the
+   * panel without saving, the mark must be unwound.
+   */
+  openLlmNewText(
+    commentId: string,
+    anchorEl: HTMLElement,
+    startLine: number,
+    endLine: number,
+  ): void {
+    if (!this.llmStore) return;
+    this.close();
+    this.currentLine = startLine;
+    this.currentStartLine = startLine;
+    this.currentLlmMode = 'newText';
+    this.currentLlmCommentId = commentId;
+    this.pendingLlmCreation = {
+      commentId,
+      kind: 'text',
+      startLine,
+      endLine,
+      createdAt: Date.now(),
+    };
+
+    const headerText =
+      endLine !== startLine
+        ? this.formatLineHeader(endLine, startLine)
+        : this.formatLineHeader(startLine, startLine);
+
+    this.panelEl = this.buildPanel({
+      headerText,
+      commentCount: 0,
+      comments: [],
+      pendingComments: [],
+      isNewComment: true,
+      threadId: null,
+      mode: 'llm-assist',
+    });
+
+    this.positionPanel(anchorEl);
+    this.container.appendChild(this.panelEl);
+    this.registerCloseHandlers();
+    this.subscribeToLlmStore();
+
+    const ta = this.panelEl.querySelector('.comment-reply-input') as HTMLTextAreaElement | null;
+    ta?.focus();
+  }
+
   close(): void {
+    // Unwind a not-yet-saved new-text comment's highlight mark
+    if (
+      this.currentLlmMode === 'newText' &&
+      this.pendingLlmCreation &&
+      this.editor
+    ) {
+      this.editor.commands.unsetLlmCommentById(this.pendingLlmCreation.commentId);
+    }
+
     if (this.panelEl) {
       this.panelEl.remove();
       this.panelEl = null;
@@ -82,11 +234,18 @@ export class CommentPanel {
     this.currentThreadId = null;
     this.currentLine = null;
     this.currentStartLine = null;
+    this.currentLlmMode = null;
+    this.currentLlmCommentId = null;
+    this.pendingLlmCreation = null;
     for (const cleanup of this.closeHandlers) cleanup();
     this.closeHandlers = [];
     if (this.storeUnsubscribe) {
       this.storeUnsubscribe();
       this.storeUnsubscribe = null;
+    }
+    if (this.llmStoreUnsubscribe) {
+      this.llmStoreUnsubscribe();
+      this.llmStoreUnsubscribe = null;
     }
   }
 
@@ -133,6 +292,7 @@ export class CommentPanel {
     pendingComments: PendingComment[];
     isNewComment: boolean;
     threadId: number | null;
+    mode: PanelMode;
   }): HTMLElement {
     const panel = document.createElement('div');
     panel.className = 'comment-panel';
@@ -165,34 +325,62 @@ export class CommentPanel {
     const body = document.createElement('div');
     body.className = 'comment-panel-body';
 
-    for (const comment of opts.comments) {
-      body.appendChild(this.renderComment(comment));
-    }
-    for (const pending of opts.pendingComments) {
-      body.appendChild(this.renderPendingComment(pending));
+    if (opts.mode === 'llm-assist') {
+      // LLM mode: render entries from llmStore for the current line.
+      if (this.llmStore && this.currentLine !== null) {
+        for (const entry of this.llmStore.getForLine(this.currentLine)) {
+          body.appendChild(this.renderLlmCommentEntry(entry));
+        }
+      }
+    } else {
+      for (const comment of opts.comments) {
+        body.appendChild(this.renderComment(comment));
+      }
+      for (const pending of opts.pendingComments) {
+        body.appendChild(this.renderPendingComment(pending));
+      }
     }
 
     panel.appendChild(body);
 
-    // Reply section — hidden for new-comment panels that already have a pending comment
-    // (only one pending comment per line; replies are only for existing threads)
-    const hasPendingAlready = opts.isNewComment && opts.pendingComments.length > 0;
-    if (!hasPendingAlready) {
+    if (opts.mode === 'llm-assist') {
+      // LLM mode always shows the Save input.
       const replySection = document.createElement('div');
       replySection.className = 'comment-panel-reply';
 
       const textarea = document.createElement('textarea');
       textarea.className = 'comment-reply-input';
-      textarea.placeholder = opts.isNewComment ? 'Type a comment...' : 'Type a reply...';
+      textarea.placeholder = 'Type a comment...';
       replySection.appendChild(textarea);
 
-      const queueBtn = document.createElement('button');
-      queueBtn.className = 'comment-reply-queue';
-      queueBtn.textContent = 'Queue';
-      queueBtn.addEventListener('click', () => this.onQueueClick(textarea, opts.threadId));
-      replySection.appendChild(queueBtn);
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'comment-reply-queue';
+      saveBtn.textContent = 'Save';
+      saveBtn.addEventListener('click', () => this.onLlmSaveClick(textarea));
+      replySection.appendChild(saveBtn);
 
       panel.appendChild(replySection);
+    } else {
+      // Reply section — hidden for new-comment panels that already have a pending comment
+      // (only one pending comment per line; replies are only for existing threads)
+      const hasPendingAlready = opts.isNewComment && opts.pendingComments.length > 0;
+      if (!hasPendingAlready) {
+        const replySection = document.createElement('div');
+        replySection.className = 'comment-panel-reply';
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'comment-reply-input';
+        textarea.placeholder = opts.isNewComment ? 'Type a comment...' : 'Type a reply...';
+        replySection.appendChild(textarea);
+
+        const queueBtn = document.createElement('button');
+        queueBtn.className = 'comment-reply-queue';
+        queueBtn.textContent = 'Queue';
+        queueBtn.addEventListener('click', () => this.onQueueClick(textarea, opts.threadId));
+        replySection.appendChild(queueBtn);
+
+        panel.appendChild(replySection);
+      }
     }
 
     return panel;
@@ -310,6 +498,157 @@ export class CommentPanel {
       const replySection = this.panelEl.querySelector('.comment-panel-reply');
       if (replySection) replySection.remove();
     }
+  }
+
+  private onLlmSaveClick(textarea: HTMLTextAreaElement): void {
+    if (!this.llmStore) return;
+    const body = textarea.value.trim();
+    if (!body) return;
+
+    if (this.currentLlmMode === 'newText' && this.pendingLlmCreation) {
+      this.llmStore.add({
+        id: this.pendingLlmCreation.commentId,
+        kind: 'text',
+        body,
+        createdAt: this.pendingLlmCreation.createdAt,
+        startLine: this.pendingLlmCreation.startLine,
+        endLine: this.pendingLlmCreation.endLine,
+      });
+      this.pendingLlmCreation = null;
+      this.close();
+    } else if (this.currentLlmMode === 'line' && this.currentLine !== null) {
+      const line1 = this.currentLine;
+      const id = this.makeLlmId();
+      this.llmStore.add({
+        id,
+        kind: 'line',
+        body,
+        createdAt: Date.now(),
+        startLine: line1,
+        endLine: line1,
+      });
+      textarea.value = '';
+      // Keep the panel open — the list re-renders via subscribeToLlmStore.
+    } else if (this.currentLlmMode === 'text' && this.currentLlmCommentId) {
+      this.llmStore.update(this.currentLlmCommentId, body);
+      this.close();
+    }
+  }
+
+  private makeLlmId(): string {
+    return typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  private renderLlmCommentEntry(entry: LlmComment): HTMLElement {
+    const el = document.createElement('div');
+    el.className = 'comment-entry llm-comment-entry';
+    el.setAttribute('data-llm-entry-id', entry.id);
+
+    const meta = document.createElement('div');
+    meta.className = 'comment-meta';
+    const kind = document.createElement('span');
+    kind.className = 'comment-pending-label';
+    kind.textContent = entry.kind === 'line' ? 'Line' : 'Text';
+    meta.appendChild(kind);
+    el.appendChild(meta);
+
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'comment-body';
+    bodyEl.textContent = entry.body;
+    el.appendChild(bodyEl);
+
+    const actions = document.createElement('div');
+    actions.className = 'llm-entry-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'llm-entry-edit';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => this.startInlineEdit(el, entry));
+    actions.appendChild(editBtn);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'llm-entry-copy';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(entry.body).catch(() => {});
+      }
+    });
+    actions.appendChild(copyBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'llm-entry-delete';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => {
+      if (!this.llmStore) return;
+      this.llmStore.remove(entry.id);
+      if (entry.kind === 'text' && this.editor) {
+        this.editor.commands.unsetLlmCommentById(entry.id);
+      }
+    });
+    actions.appendChild(deleteBtn);
+
+    el.appendChild(actions);
+
+    return el;
+  }
+
+  private startInlineEdit(rowEl: HTMLElement, entry: LlmComment): void {
+    if (!this.llmStore) return;
+    const bodyEl = rowEl.querySelector('.comment-body') as HTMLElement | null;
+    if (!bodyEl) return;
+    const oldBody = bodyEl.textContent ?? '';
+    const ta = document.createElement('textarea');
+    ta.className = 'comment-reply-input llm-entry-edit-input';
+    ta.value = oldBody;
+    bodyEl.replaceWith(ta);
+    ta.focus();
+
+    const confirm = () => {
+      const newBody = ta.value.trim();
+      if (newBody && newBody !== oldBody && this.llmStore) {
+        this.llmStore.update(entry.id, newBody);
+      } else {
+        const restored = document.createElement('div');
+        restored.className = 'comment-body';
+        restored.textContent = oldBody;
+        ta.replaceWith(restored);
+      }
+    };
+
+    ta.addEventListener('blur', confirm, { once: true });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        confirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        const restored = document.createElement('div');
+        restored.className = 'comment-body';
+        restored.textContent = oldBody;
+        ta.replaceWith(restored);
+      }
+    });
+  }
+
+  private subscribeToLlmStore(): void {
+    if (!this.llmStore) return;
+    this.llmStoreUnsubscribe = this.llmStore.onChange(() => {
+      if (!this.panelEl || !this.llmStore || this.currentLine === null) return;
+      const body = this.panelEl.querySelector('.comment-panel-body');
+      if (!body) return;
+      body.innerHTML = '';
+      for (const entry of this.llmStore.getForLine(this.currentLine)) {
+        body.appendChild(this.renderLlmCommentEntry(entry));
+      }
+      const countEl = this.panelEl.querySelector('.comment-panel-count');
+      const n = this.llmStore.getForLine(this.currentLine).length;
+      if (countEl) {
+        countEl.textContent = n > 0 ? `${n} comment${n !== 1 ? 's' : ''}` : '';
+      }
+    });
   }
 
   private positionPanel(anchorEl: HTMLElement): void {

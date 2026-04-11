@@ -176,30 +176,30 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 - `src/__tests__/unit/commentPanel.llm.test.ts` (new)
 
 ### Tasks
-- [ ] Task 4.1: Add optional constructor params `llmStore?: LlmCommentStore` and `editor?: Editor`. Existing thread entry points ignore both. Add `mode: 'thread' | 'llm-assist'` field to `buildPanel`'s options.
+- [x] Task 4.1: Add optional constructor params `llmStore?: LlmCommentStore` and `editor?: Editor`. Existing thread entry points ignore both. Add `mode: 'thread' | 'llm-assist'` field to `buildPanel`'s options.
   - Executor: LLM
   - Verification: `npm run check-types` clean.
-- [ ] Task 4.2: In `buildPanel` under `mode === 'llm-assist'`: skip the `renderComment` / `renderPendingComment` loops at `commentPanel.ts:168-173`; skip the `hasPendingAlready` guard at `commentPanel.ts:179-196`; rename the reply button label to `'Save'`; wire it to a new `onLlmSaveClick` handler; render Copy and Delete buttons next to Save in the same row. Preserve `positionPanel` and `registerCloseHandlers` verbatim — Spike 4 verified they have zero thread-state references.
+- [x] Task 4.2: In `buildPanel` under `mode === 'llm-assist'`: skip the `renderComment` / `renderPendingComment` loops at `commentPanel.ts:168-173`; skip the `hasPendingAlready` guard at `commentPanel.ts:179-196`; rename the reply button label to `'Save'`; wire it to a new `onLlmSaveClick` handler; render Copy and Delete buttons next to Save in the same row. Preserve `positionPanel` and `registerCloseHandlers` verbatim — Spike 4 verified they have zero thread-state references.
   - Executor: LLM
   - Verification: `npm test -- commentPanel.llm.test.ts` — L2 (`mode: 'llm-assist'` renders no `.thread-comment` elements), L3 (reply button text is `'Save'`), L4 (empty textarea Save is a no-op — `store.add` never called). `npm test -- commentPanel.test.ts` — L1 (existing thread tests still pass; regression guard).
-- [ ] Task 4.3: Add `openLlmLine(line1, anchorEl)`. Renders the list of `store.getForLine(line1)` in order (line first, then text by `createdAt` asc). When the list is empty, focus the textarea for first input.
+- [x] Task 4.3: Add `openLlmLine(line1, anchorEl)`. Renders the list of `store.getForLine(line1)` in order (line first, then text by `createdAt` asc). When the list is empty, focus the textarea for first input.
   - Executor: LLM
   - Verification: `npm test -- commentPanel.llm.test.ts` — L5 (list order: line@7, text@7 createdAt 100, text@7 createdAt 200). Empty-list focus check included as an edge-case assertion.
-- [ ] Task 4.4: Add `openLlmText(id, anchorEl)` — pre-fills the textarea with `store.get(id).body`. Add `openLlmNewText(id, anchorEl)` — opens with an empty textarea; close-without-save runs `editor.commands.unsetLlmCommentById(id)`.
+- [x] Task 4.4: Add `openLlmText(id, anchorEl)` — pre-fills the textarea with `store.get(id).body`. Add `openLlmNewText(id, anchorEl)` — opens with an empty textarea; close-without-save runs `editor.commands.unsetLlmCommentById(id)`.
   - Executor: LLM
   - Verification: `npm test -- commentPanel.llm.test.ts` — L6 (`openLlmText` pre-fill), L7 (`openLlmNewText` empty), L8 (cancel on `openLlmNewText` calls `unsetLlmCommentById('Y')` once).
-- [ ] Task 4.5: Per-entry Edit / Copy / Delete buttons. Edit replaces the body with an inline textarea and writes back via `store.update(id, newBody)` on confirm. Copy calls `navigator.clipboard.writeText(entry.body)` — just the body, NOT `toPayload`. Delete calls `store.remove(id)`; for `kind: 'text'`, also calls `editor.commands.unsetLlmCommentById(id)`.
+- [x] Task 4.5: Per-entry Edit / Copy / Delete buttons. Edit replaces the body with an inline textarea and writes back via `store.update(id, newBody)` on confirm. Copy calls `navigator.clipboard.writeText(entry.body)` — just the body, NOT `toPayload`. Delete calls `store.remove(id)`; for `kind: 'text'`, also calls `editor.commands.unsetLlmCommentById(id)`.
   - Executor: LLM
   - Verification: `npm test -- commentPanel.llm.test.ts` — L9 (Copy writes the body only, never a `File:` payload), L10 (Delete on `kind: 'text'` calls both `store.remove` and `unsetLlmCommentById`), L11 (Delete on `kind: 'line'` calls `store.remove` only).
-- [ ] Task 4.6: Register a parallel `llmStore.onChange` subscription in the panel that re-renders the list section only. Do NOT reuse `subscribeToStore` — it assumes `PendingCommentStore`'s shape.
+- [x] Task 4.6: Register a parallel `llmStore.onChange` subscription in the panel that re-renders the list section only. Do NOT reuse `subscribeToStore` — it assumes `PendingCommentStore`'s shape.
   - Executor: LLM
   - Verification: happy-dom test: add a comment to the store while the panel is open for its line; assert the list section gains an entry without the panel closing or re-positioning.
 
 ### Phase verification
-- [ ] All tasks above complete.
-- [ ] `npm test -- commentPanel.llm.test.ts` clean (L2–L11).
-- [ ] `npm test -- commentPanel.test.ts` clean (L1 regression).
-- [ ] `npm run check-types` clean.
+- [x] All tasks above complete.
+- [x] `npm test -- commentPanel.llm.test.ts` clean (L2–L11 plus an onChange re-render test — 12 tests).
+- [x] `npm test -- commentPanel.test.ts` clean (L1 regression — 18 tests).
+- [x] `npm run check-types` clean.
 
 ---
 
@@ -347,7 +347,7 @@ Phase 2 and Phase 3 can run in parallel after Phase 1 lands. Phase 4 depends on 
 | Phase 1: Store + init-path piping | [x] | Store, payload, init field and provider wiring landed. 325 tests green. |
 | Phase 2: TipTap mark | [x] | LlmCommentMark with stacking + empty markdown serializer. 8 tests green. |
 | Phase 3: Gutter plugin | [x] | LLM branch in commentIndicator, 11 new tests, regression suite still green. |
-| Phase 4: Panel extensions | [ ] | |
+| Phase 4: Panel extensions | [x] | LLM mode + openLlmLine/Text/NewText + per-entry actions + parallel onChange. 12 new + 18 regression. |
 | Phase 5: Selection anchor | [ ] | |
 | Phase 6: Toggle + Copy all + command | [ ] | |
 | Phase 7: Integration round-trips | [ ] | |
