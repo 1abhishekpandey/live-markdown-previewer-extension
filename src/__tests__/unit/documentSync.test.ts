@@ -103,35 +103,13 @@ describe('handleWebviewMessage', () => {
     expect(doc.save).not.toHaveBeenCalled();
   });
 
-  it('executes undo command', async () => {
+  it('does not call executeCommand for unknown message types', async () => {
     const webview = makeWebview();
     const doc = makeDocument();
     const mgr = new DocumentSyncManager(doc as any, webview as any);
-    await mgr.handleWebviewMessage({ type: 'undo' });
-    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('undo');
-  });
-
-  it('executes redo command', async () => {
-    const webview = makeWebview();
-    const doc = makeDocument();
-    const mgr = new DocumentSyncManager(doc as any, webview as any);
-    await mgr.handleWebviewMessage({ type: 'redo' });
-    expect(vscode.commands.executeCommand).toHaveBeenCalledWith('redo');
-  });
-
-  it('ignores undo when isReadOnly', async () => {
-    const webview = makeWebview();
-    const doc = makeDocument();
-    const mgr = new DocumentSyncManager(doc as any, webview as any, true);
-    await mgr.handleWebviewMessage({ type: 'undo' });
-    expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
-  });
-
-  it('ignores redo when isReadOnly', async () => {
-    const webview = makeWebview();
-    const doc = makeDocument();
-    const mgr = new DocumentSyncManager(doc as any, webview as any, true);
-    await mgr.handleWebviewMessage({ type: 'redo' });
+    // 'undo' and 'redo' message types no longer exist; TipTap owns history.
+    // Passing an unknown type via cast should not trigger executeCommand.
+    await mgr.handleWebviewMessage({ type: 'unknown' as any });
     expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
   });
 });

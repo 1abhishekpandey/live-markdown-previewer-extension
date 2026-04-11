@@ -12,9 +12,6 @@ export class SyncClient {
   private vscode: VsCodeApi;
   private isExternalUpdate: boolean = false;
   private currentVersion: number = 0;
-  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-  // scrollTimer removed — rAF throttle replaces debounce for anchor updates
-  private pendingExternalUpdate: ExtensionToWebviewMessage | null = null;
   // True once the first 'init' message has been handled and content is in the DOM.
   private isInitialized: boolean = false;
   // Buffered scroll anchor for when 'scrollToAnchor' arrives before 'init'.
@@ -22,7 +19,6 @@ export class SyncClient {
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   private scrollHandler: (() => void) | null = null;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
-  private debounceDelayInMs: number = 300;
   private onFirstInit: (() => void) | undefined;
   private isReadOnly: boolean = false;
 
@@ -35,7 +31,7 @@ export class SyncClient {
   init(): void {
     this.editor.on('update', () => {
       if (this.isExternalUpdate) return;
-      this.debouncedSendEdit();
+      this.sendEdit();
     });
 
     this.setupKeyboardShortcuts();
@@ -173,9 +169,15 @@ export class SyncClient {
           this.editor.storage.localImage.documentDirUri = msg.documentDirUri;
         }
         this.isExternalUpdate = true;
-        this.editor.commands.setContent(msg.markdown);
+        this.editor
+          .chain()
+          .setContent(msg.markdown)
+          .command(({ tr }) => {
+            tr.setMeta('addToHistory', false);
+            return true;
+          })
+          .run();
         this.isExternalUpdate = false;
-        this.setAdaptiveDebounce(msg.markdown.length);
         if (msg.isReadOnly) {
           this.isReadOnly = true;
           this.editor.setEditable(false);
@@ -216,12 +218,6 @@ export class SyncClient {
 
       case 'externalUpdate': {
         if (msg.version <= this.currentVersion) return;
-
-        if (this.debounceTimer !== null) {
-          this.pendingExternalUpdate = msg;
-          break;
-        }
-
         this.applyExternalUpdate(msg);
         break;
       }
@@ -321,28 +317,6 @@ export class SyncClient {
     return best;
   }
 
-  private setAdaptiveDebounce(charCount: number): void {
-    if (charCount > 100_000) {
-      this.debounceDelayInMs = 800;
-    } else if (charCount > 30_000) {
-      this.debounceDelayInMs = 500;
-    } else {
-      this.debounceDelayInMs = 300;
-    }
-  }
-
-  private debouncedSendEdit(): void {
-    if (this.isReadOnly || !this.editor.isEditable) return;
-    if (this.debounceTimer !== null) {
-      clearTimeout(this.debounceTimer);
-    }
-    this.debounceTimer = setTimeout(() => {
-      this.debounceTimer = null;
-      if (!this.editor.isEditable) return;
-      this.sendEdit();
-    }, this.debounceDelayInMs);
-  }
-
   private applyExternalUpdate(msg: ExtensionToWebviewMessage): void {
     if (msg.type !== 'externalUpdate') return;
 
@@ -359,7 +333,14 @@ export class SyncClient {
     if (msg.documentDirUri) {
       this.editor.storage.localImage.documentDirUri = msg.documentDirUri;
     }
-    this.editor.commands.setContent(msg.markdown);
+    this.editor
+      .chain()
+      .setContent(msg.markdown)
+      .command(({ tr }) => {
+        tr.setMeta('addToHistory', false);
+        return true;
+      })
+      .run();
 
     this.editor.commands.setTextSelection({
       from: Math.min(from, this.editor.state.doc.content.size - 1),
@@ -379,12 +360,6 @@ export class SyncClient {
     const markdown = this.editor.storage.markdown.getMarkdown();
     this.currentVersion++;
     this.vscode.postMessage({ type: 'edit', markdown, version: this.currentVersion });
-
-    if (this.pendingExternalUpdate) {
-      const pending = this.pendingExternalUpdate;
-      this.pendingExternalUpdate = null;
-      this.applyExternalUpdate(pending);
-    }
   }
 
   private setupKeyboardShortcuts(): void {
@@ -394,13 +369,7 @@ export class SyncClient {
       const modKey = e.metaKey || e.ctrlKey;
       if (!modKey) return;
 
-      if (e.key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        if (!this.isReadOnly) this.vscode.postMessage({ type: 'undo' });
-      } else if (e.key === 'z' && e.shiftKey) {
-        e.preventDefault();
-        if (!this.isReadOnly) this.vscode.postMessage({ type: 'redo' });
-      } else if (e.key === 's') {
+      if (e.key === 's') {
         e.preventDefault();
         if (!this.isReadOnly) {
           const markdown = this.editor.storage.markdown.getMarkdown();
@@ -420,11 +389,6 @@ export class SyncClient {
   }
 
   dispose(): void {
-    if (this.debounceTimer !== null) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-
     this.pendingScrollAnchor = null;
 
     if (this.keydownHandler !== null) {
