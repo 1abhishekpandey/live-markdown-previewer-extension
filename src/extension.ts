@@ -84,37 +84,67 @@ export function activate(context: vscode.ExtensionContext) {
 	const rawModeUris = new Set<string>();
 	let isAutoSwitching = false;
 
-	// Auto-open .md files with WYSIWYG unless in a diff or raw-mode toggle
-	const autoOpenDisposable = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
-		if (isAutoSwitching || !editor) return;
-		const doc = editor.document;
-		if (doc.languageId !== 'markdown') return;
-		if (doc.uri.scheme !== 'file' && doc.uri.scheme !== 'untitled') return;
-
-		const uriStr = doc.uri.toString();
-		if (rawModeUris.has(uriStr)) return;
-
-		const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
-		if (activeTab?.input instanceof vscode.TabInputTextDiff) return;
-
+	const swapToWysiwyg = async (uri: vscode.Uri) => {
 		isAutoSwitching = true;
 		try {
-			const uri = doc.uri;
 			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 			await vscode.commands.executeCommand(
-				'vscode.openWith', uri, 'liveMarkdown.markdownEditor'
+				'vscode.openWith',
+				uri,
+				'liveMarkdown.markdownEditor'
 			);
 		} finally {
 			isAutoSwitching = false;
 		}
+	};
+
+	const shouldAutoSwap = (tab: vscode.Tab | undefined, uri: vscode.Uri): boolean => {
+		if (!tab || !(tab.input instanceof vscode.TabInputText)) return false;
+		if (uri.scheme !== 'file' && uri.scheme !== 'untitled') return false;
+		if (!/\.md$/i.test(uri.path)) return false;
+		if (rawModeUris.has(uri.toString())) return false;
+		return true;
+	};
+
+	// Auto-open .md files with WYSIWYG — but ONLY for committed (non-preview)
+	// tabs. Preview tabs from Explorer single-click are left as raw so focus
+	// stays in Explorer and native shortcuts (Enter = rename, Cmd+Delete =
+	// trash, Cmd+C/V/X, F2, etc.) keep working. When the user commits a
+	// preview (double-click, click tab title, type into it), the tab-change
+	// listener below swaps it to WYSIWYG.
+	const autoOpenDisposable = vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+		if (isAutoSwitching || !editor) return;
+		const doc = editor.document;
+		if (doc.languageId !== 'markdown') return;
+
+		const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+		if (activeTab?.input instanceof vscode.TabInputTextDiff) return;
+		if (activeTab?.isPreview === true) return;
+		if (!shouldAutoSwap(activeTab, doc.uri)) return;
+
+		await swapToWysiwyg(doc.uri);
 	});
 
-	// Clean up raw-mode tracking when tabs close
-	const tabCloseDisposable = vscode.window.tabGroups.onDidChangeTabs((e) => {
+	// Tab change listener: (1) clean up raw-mode tracking on close,
+	// (2) when a preview .md tab gets committed (isPreview flips false),
+	// swap it to WYSIWYG.
+	const tabChangeDisposable = vscode.window.tabGroups.onDidChangeTabs(async (e) => {
 		for (const tab of e.closed) {
 			if (tab.input instanceof vscode.TabInputText) {
 				rawModeUris.delete(tab.input.uri.toString());
 			}
+		}
+
+		if (isAutoSwitching) return;
+		for (const tab of e.changed) {
+			if (isAutoSwitching) return;
+			if (tab.isPreview) continue;
+			if (!(tab.input instanceof vscode.TabInputText)) continue;
+			if (!shouldAutoSwap(tab, tab.input.uri)) continue;
+			if (tab !== vscode.window.tabGroups.activeTabGroup.activeTab) continue;
+
+			await swapToWysiwyg(tab.input.uri);
+			break;
 		}
 	});
 
@@ -232,7 +262,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	);
 
-	context.subscriptions.push(disposable, autoOpenDisposable, tabCloseDisposable, toggleCmd);
+	context.subscriptions.push(disposable, autoOpenDisposable, tabChangeDisposable, toggleCmd);
 }
 
 export function deactivate() {}
