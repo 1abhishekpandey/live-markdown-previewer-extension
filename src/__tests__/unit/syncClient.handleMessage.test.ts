@@ -12,8 +12,13 @@ function makeEditor() {
   const setEditable = vi.fn();
   const getMarkdown = vi.fn().mockReturnValue('');
   const setTextSelection = vi.fn();
+  const chainObj: any = {};
+  chainObj.setContent = (...args: any[]) => { setContent(...args); return chainObj; };
+  chainObj.command = vi.fn().mockReturnValue(chainObj);
+  chainObj.run = vi.fn().mockReturnValue(true);
   return {
     on: vi.fn(),
+    chain: vi.fn().mockReturnValue(chainObj),
     commands: {
       setContent,
       focus: vi.fn(),
@@ -197,95 +202,75 @@ describe('handleMessage - externalUpdate', () => {
     vi.useRealTimers();
   });
 
-  it('buffers externalUpdate during active debounce timer', () => {
-    vi.useFakeTimers();
-    const editor = makeEditor();
-    editor.storage.markdown.getMarkdown.mockReturnValue('# Original');
-    const vsCode = makeVsCode();
-    const client = new SyncClient(editor as any, vsCode);
-
-    // Wire up the 'update' callback by capturing it from editor.on()
-    // (editor.on is called during init(), but we can simulate it manually)
-    // Actually, to test debounce buffering without calling init(), we need another approach:
-    // Access the private debouncedSendEdit via init() in happy-dom environment.
-    // Safer: just call init() — in happy-dom, window.addEventListener works.
-    client.init();
-
-    // Trigger the 'update' event to start the debounce timer
-    const updateHandler = (editor.on as any).mock.calls.find((c: any[]) => c[0] === 'update')?.[1];
-    expect(updateHandler).toBeDefined();
-    updateHandler(); // triggers debouncedSendEdit → sets debounceTimer
-
-    // Now send an externalUpdate while the debounce timer is active
-    client.handleMessage({ type: 'externalUpdate', markdown: '# Buffered', version: 1 });
-
-    // setContent should NOT have been called yet (buffered)
-    expect(editor.commands.setContent).not.toHaveBeenCalled();
-
-    // After timer fires, the pending edit is sent and then the buffered update is applied
-    vi.runAllTimers();
-    expect(editor.commands.setContent).toHaveBeenCalledWith('# Buffered');
-
-    client.dispose();
-    vi.useRealTimers();
-  });
 });
 
-describe('adaptive debounce thresholds', () => {
-  it('sets 300ms debounce for small documents', () => {
-    vi.useFakeTimers();
+describe('immediate edit dispatch (no debounce)', () => {
+  it('update event posts edit message immediately', () => {
     const editor = makeEditor();
-    editor.storage.markdown.getMarkdown.mockReturnValue('small');
+    editor.storage.markdown.getMarkdown.mockReturnValue('# Updated');
     const vsCode = makeVsCode();
     const client = new SyncClient(editor as any, vsCode);
     client.init();
 
-    // Capture the update handler before clearing mocks
+    // Clear the 'ready' postMessage from init()
+    vsCode.postMessage.mockClear();
+
+    // Capture the 'update' handler registered by init()
     const updateHandler = (editor.on as any).mock.calls.find((c: any[]) => c[0] === 'update')?.[1];
+    expect(updateHandler).toBeDefined();
 
-    // Init with small markdown (< 30000 chars)
-    client.handleMessage({ type: 'init', markdown: 'small content' });
-
-    // Clear the 'ready' postMessage sent by init()
-    vi.clearAllMocks();
-
-    // Trigger update, advance timer by 299ms — edit should NOT have been sent
+    // Trigger an update — should post edit synchronously (no timer needed)
     updateHandler();
-    vi.advanceTimersByTime(299);
-    expect(vsCode.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));
 
-    // At 300ms it fires
-    vi.advanceTimersByTime(1);
-    expect(vsCode.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));
+    const editCalls = vsCode.postMessage.mock.calls.filter((c: any[]) => c[0].type === 'edit');
+    expect(editCalls).toHaveLength(1);
+    expect(editCalls[0][0]).toMatchObject({ type: 'edit', markdown: '# Updated', version: 1 });
 
     client.dispose();
-    vi.useRealTimers();
   });
 
-  it('sets 800ms debounce for very large documents (> 100000 chars)', () => {
-    vi.useFakeTimers();
+  it('Cmd+Z is not intercepted (no undo message posted)', () => {
     const editor = makeEditor();
-    const largeMarkdown = 'x'.repeat(100_001);
-    editor.storage.markdown.getMarkdown.mockReturnValue(largeMarkdown);
     const vsCode = makeVsCode();
     const client = new SyncClient(editor as any, vsCode);
     client.init();
 
-    // Capture the update handler before clearing mocks
-    const updateHandler = (editor.on as any).mock.calls.find((c: any[]) => c[0] === 'update')?.[1];
+    vsCode.postMessage.mockClear();
 
-    client.handleMessage({ type: 'init', markdown: largeMarkdown });
+    // Fire Ctrl+Z — TipTap handles it internally; extension must NOT post an 'undo' message
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
 
-    // Clear the 'ready' postMessage sent by init()
-    vi.clearAllMocks();
-    updateHandler();
-    vi.advanceTimersByTime(799);
-    expect(vsCode.postMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));
-
-    vi.advanceTimersByTime(1);
-    expect(vsCode.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'edit' }));
+    const undoCalls = vsCode.postMessage.mock.calls.filter((c: any[]) => c[0].type === 'undo');
+    expect(undoCalls).toHaveLength(0);
 
     client.dispose();
-    vi.useRealTimers();
+  });
+
+  it('init suppresses history via chain + addToHistory meta', () => {
+    const editor = makeEditor();
+    const client = new SyncClient(editor as any, makeVsCode());
+    client.handleMessage({ type: 'init', markdown: '# Hello' });
+    const chainObj = (editor.chain as any).mock.results[0].value;
+    expect(editor.chain).toHaveBeenCalled();
+    expect(chainObj.command).toHaveBeenCalled();
+    const metaCallback = chainObj.command.mock.calls[0][0];
+    const setMeta = vi.fn();
+    metaCallback({ tr: { setMeta } });
+    expect(setMeta).toHaveBeenCalledWith('addToHistory', false);
+    expect(chainObj.run).toHaveBeenCalled();
+  });
+
+  it('externalUpdate suppresses history via chain + addToHistory meta', () => {
+    const editor = makeEditor();
+    // Return different content so applyExternalUpdate does not short-circuit
+    editor.storage.markdown.getMarkdown.mockReturnValue('# Old');
+    const client = new SyncClient(editor as any, makeVsCode());
+    client.handleMessage({ type: 'externalUpdate', markdown: '# New', version: 1 });
+    const chainObj = (editor.chain as any).mock.results[0].value;
+    expect(chainObj.command).toHaveBeenCalled();
+    const metaCallback = chainObj.command.mock.calls[0][0];
+    const setMeta = vi.fn();
+    metaCallback({ tr: { setMeta } });
+    expect(setMeta).toHaveBeenCalledWith('addToHistory', false);
   });
 });

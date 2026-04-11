@@ -82,14 +82,6 @@ export interface EditMessage {
   version: number;
 }
 
-export interface UndoMessage {
-  type: 'undo';
-}
-
-export interface RedoMessage {
-  type: 'redo';
-}
-
 export interface SaveMessage {
   type: 'save';
   markdown: string;
@@ -144,8 +136,6 @@ export interface SavePendingQueueMessage {
 export type WebviewToExtensionMessage =
   | ReadyMessage
   | EditMessage
-  | UndoMessage
-  | RedoMessage
   | SaveMessage
   | BaselineMessage
   | ScrollAnchorUpdateMessage

@@ -11,6 +11,8 @@ export class DocumentSyncManager {
   private webview: vscode.Webview;
   private readonly isReadOnly: boolean;
   private readonly documentDirUri: string;
+  // Serialize async message handling so edits land before subsequent undo/redo/save
+  private messageQueue: Promise<void> = Promise.resolve();
 
   constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false, documentDirUri: string = '') {
     this.document = document;
@@ -20,6 +22,16 @@ export class DocumentSyncManager {
   }
 
   async handleWebviewMessage(msg: WebviewToExtensionMessage): Promise<void> {
+    if (!this.isReadOnly && (msg.type === 'edit' || msg.type === 'save')) {
+      this.isApplyingEdit = true;
+    }
+    this.messageQueue = this.messageQueue.then(() => this.processMessage(msg)).catch((err) => {
+      console.error('[LiveMarkdown] messageQueue error:', err instanceof Error ? err.message : err);
+    });
+    return this.messageQueue;
+  }
+
+  private async processMessage(msg: WebviewToExtensionMessage): Promise<void> {
     switch (msg.type) {
       case 'ready':
         this.originalContent = this.document.getText();
@@ -30,17 +42,9 @@ export class DocumentSyncManager {
         if (this.isReadOnly) return;
         if (msg.version >= this.currentVersion) {
           await this.applyMarkdownEdit(msg.markdown);
+        } else {
+          this.isApplyingEdit = false;
         }
-        break;
-
-      case 'undo':
-        if (this.isReadOnly) return;
-        vscode.commands.executeCommand('undo');
-        break;
-
-      case 'redo':
-        if (this.isReadOnly) return;
-        vscode.commands.executeCommand('redo');
         break;
 
       case 'baseline':

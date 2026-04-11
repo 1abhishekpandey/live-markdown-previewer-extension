@@ -16,8 +16,13 @@ function makeEditor(dom?: HTMLElement) {
   const setEditable = vi.fn();
   const getMarkdown = vi.fn().mockReturnValue('');
   const setTextSelection = vi.fn();
+  const chainObj: any = {};
+  chainObj.setContent = (...args: any[]) => { setContent(...args); return chainObj; };
+  chainObj.command = vi.fn().mockReturnValue(chainObj);
+  chainObj.run = vi.fn().mockReturnValue(true);
   return {
     on: vi.fn(),
+    chain: vi.fn().mockReturnValue(chainObj),
     commands: { setContent, focus: vi.fn(), setTextSelection },
     setEditable,
     storage: {

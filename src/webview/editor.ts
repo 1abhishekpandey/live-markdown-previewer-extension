@@ -91,7 +91,7 @@ export function createEditor(element: HTMLElement): Editor {
     element,
     extensions: [
       StarterKit.configure({
-        history: false,
+        history: { newGroupDelay: 500 },
         codeBlock: false,
       }),
       Link.configure({
