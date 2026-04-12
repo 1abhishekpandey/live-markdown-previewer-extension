@@ -735,4 +735,49 @@ describe('LlmCommentStore — threading', () => {
     // reply id is not a root, so should return empty
     expect(store.toThreadPayload('reply', editor, 'f.md')).toBe('');
   });
+
+  it('T11: text comment extracts only marked text, not full line', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'txt-1',
+      kind: 'text',
+      body: 'fix this wording',
+      createdAt: 100,
+      startLine: 3,
+      endLine: 3,
+    });
+
+    // markText mock returns only the selected portion; lineText has the full line
+    const editor = makeMockEditor({
+      lineText: { 3: 'The quick brown fox jumps over the lazy dog' },
+      markText: { 'txt-1': 'brown fox' },
+    });
+
+    // Even with rawMarkdown available, text comments should use mark text
+    const rawMarkdown = 'line one\nline two\nThe quick brown fox jumps over the lazy dog\nline four';
+    const out = store.toPayload(editor, 'f.md', null, rawMarkdown);
+
+    // Should contain only the selected text, not the full line
+    expect(out).toContain('"""\nbrown fox\n"""');
+    expect(out).not.toContain('The quick brown fox');
+  });
+
+  it('T12: line comment still extracts full line from rawMarkdown', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'line-1',
+      kind: 'line',
+      body: 'expand this',
+      createdAt: 100,
+      startLine: 3,
+      endLine: 3,
+    });
+
+    const editor = makeMockEditor({ lineText: { 3: 'The quick brown fox' } });
+    const rawMarkdown = 'line one\nline two\nThe quick brown fox\nline four';
+    const out = store.toPayload(editor, 'f.md', null, rawMarkdown);
+
+    // Line comment uses full line from rawMarkdown
+    expect(out).toContain('"""\nThe quick brown fox\n"""');
+  });
 });

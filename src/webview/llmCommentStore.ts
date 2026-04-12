@@ -193,17 +193,17 @@ function extractQuotedText(
   lineMap: LineMap | null,
   rawMarkdown?: string,
 ): string {
-  // Primary path: extract directly from raw markdown — preserves newlines,
-  // includes code blocks, and matches exactly what an LLM reads from the file.
+  // Text comments: extract only the marked (selected) text from the editor,
+  // not the full line(s). The mark covers exactly what the user highlighted.
+  if (comment.kind === 'text') {
+    return extractMarkText(editor, comment.id);
+  }
+  // Line comments: extract full line(s) from raw markdown when available.
   if (rawMarkdown) {
     const lines = rawMarkdown.split('\n');
     return lines.slice(comment.startLine - 1, comment.endLine).join('\n');
   }
-  // Test/fallback path when rawMarkdown is not available.
-  if (comment.kind === 'line') {
-    return extractLineText(editor, comment.startLine, lineMap);
-  }
-  return extractMarkText(editor, comment.id);
+  return extractLineText(editor, comment.startLine, lineMap);
 }
 
 interface LineMapStorage {
