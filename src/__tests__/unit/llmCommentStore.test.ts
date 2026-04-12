@@ -185,14 +185,15 @@ describe('LlmCommentStore — toPayload', () => {
     });
 
     const expected =
-      'File: docs/design.md\n' +
+      'File: `docs/design.md`\n' +
       '\n' +
-      'Line 42 — Selected text:\n' +
+      'Comment — Line 42:\n' +
+      'Selected text:\n' +
       '"""\n' +
       'retainContextWhenHidden: true avoids re-parsing markdown on tab switches\n' +
       '"""\n' +
       '\n' +
-      'Comment:\n' +
+      'Feedback:\n' +
       '"""\n' +
       'Expand this with a concrete example.\n' +
       '"""';
@@ -223,8 +224,10 @@ describe('LlmCommentStore — toPayload', () => {
     });
 
     const out = store.toPayload(editor, 'f.md');
-    expect(out).toContain('Comment-1:');
-    expect(out).toContain('Comment-2:');
+    expect(out).toContain('Comment 1 — ');
+    expect(out).toContain('Comment 2 — ');
+    expect(out).toContain('Feedback-1:');
+    expect(out).toContain('Feedback-2:');
     expect(out).not.toContain('Comment:\n');
   });
 
@@ -256,7 +259,7 @@ describe('LlmCommentStore — toPayload', () => {
     expect(idxThree).toBeGreaterThan(-1);
     expect(idxTen).toBeGreaterThan(-1);
     expect(idxThree).toBeLessThan(idxTen);
-    expect(out.indexOf('Line 3 ')).toBeLessThan(out.indexOf('Line 10 '));
+    expect(out.indexOf('Line 3:')).toBeLessThan(out.indexOf('Line 10:'));
   });
 
   it('P5: same-line tie-breaker — line first, then text by createdAt asc', () => {
@@ -313,7 +316,7 @@ describe('LlmCommentStore — toPayload', () => {
     });
 
     const out = store.toPayload(editor, 'f.md');
-    expect(out).toContain('Lines 5-7 — Selected text:');
+    expect(out).toContain('Comment — Lines 5-7:');
   });
 
   it('P7: quoted text with triple-backticks and table pipes appears verbatim (no escaping)', () => {
@@ -350,7 +353,7 @@ describe('LlmCommentStore — toPayload', () => {
     const editor = makeMockEditor({ lineText: { 1: 'text' } });
 
     const out = store.toPayload(editor, 'sub/dir/x.md');
-    expect(out.startsWith('File: sub/dir/x.md\n')).toBe(true);
+    expect(out.startsWith('File: `sub/dir/x.md`\n')).toBe(true);
   });
 
   it('P10: three comments → exactly two ----- separators, no trailing', () => {
@@ -384,7 +387,7 @@ describe('LlmCommentStore — toPayload', () => {
     });
 
     const out = store.toPayload(editor, 'f.md');
-    const separatorMatches = out.match(/\n\n-----\n\n/g) ?? [];
+    const separatorMatches = out.match(/\n\n---\n\n/g) ?? [];
     expect(separatorMatches.length).toBe(2);
     expect(out.endsWith('"""')).toBe(true);
   });
@@ -404,6 +407,6 @@ describe('LlmCommentStore — toPayload', () => {
     const editor = makeMockEditor({ lineText: { 1: 'text' } });
 
     const out = store.toPayload(editor, 'f.md');
-    expect(out).not.toContain('-----');
+    expect(out).not.toContain('\n\n---\n\n');
   });
 });

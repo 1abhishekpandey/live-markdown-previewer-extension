@@ -55,6 +55,14 @@ window.addEventListener('message', (event: MessageEvent) => {
     }
   }
 
+  // Capture raw markdown from the extension side BEFORE syncClient.handleMessage
+  // triggers editor updates. This ensures rebuildLlmLineMap uses the actual file
+  // content (not the round-tripped serialisation) for line number mapping.
+  if (data.type === 'init' || data.type === 'externalUpdate') {
+    rawMarkdown = (data as { markdown?: string }).markdown ?? '';
+    isExternallyUpdating = true;
+  }
+
   // LLM-Assist: toggle command routed from the extension host
   if (dispatchLlmMessage(data, llmToggle)) return;
 
@@ -118,6 +126,13 @@ window.addEventListener('message', (event: MessageEvent) => {
   }
 
   syncClient.handleMessage(data as ExtensionToWebviewMessage);
+
+  if (isExternallyUpdating) {
+    // Snapshot the serialised output AFTER setContent so the update handler
+    // can detect real content changes vs mark-only changes.
+    lastKnownSerialized = editor.storage.markdown.getMarkdown();
+    isExternallyUpdating = false;
+  }
 });
 
 // Code wrap toggle
@@ -170,11 +185,18 @@ editor.registerPlugin(commentPlugin);
 // LLM-Assist mount. The rebuildLlmLineMap closure captures `editor` + the
 // markdown-it parser so LlmToggle can republish plugin state without
 // re-deriving these at activate time.
+//
+// rawMarkdown tracks the file content as it exists on disk so that line
+// numbers in the copy payload match the raw .md file (what an LLM reads).
+// It is set from the init/externalUpdate message and updated to the
+// serialised version after each user edit.
 let llmLineMap: LineMap | null = null;
+let rawMarkdown = '';
+let lastKnownSerialized = '';
+let isExternallyUpdating = false;
 const rebuildLlmLineMap = (): void => {
   const md = (editor.storage as any).markdown?.parser?.md;
-  const markdown = editor.storage.markdown.getMarkdown();
-  llmLineMap = md ? buildLineMap(editor.state.doc, markdown, md) : null;
+  llmLineMap = md ? buildLineMap(editor.state.doc, rawMarkdown, md) : null;
 };
 
 const llmSelectionAnchor = new LlmSelectionAnchor(
@@ -202,6 +224,8 @@ const llmToggle = new LlmToggle(
     });
   },
   rebuildLlmLineMap,
+  () => llmLineMap,
+  () => rawMarkdown,
 );
 
 // Assemble the right-side toolbar as a connected button group.
@@ -429,6 +453,21 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
   if (dispatchLlmEditorClick(target, llmToggle, llmStore, commentPanel)) {
     e.stopPropagation();
     e.preventDefault();
+  }
+});
+
+// Keep rawMarkdown in sync with user edits so the lineMap reflects what is
+// on disk. Mark-only changes (e.g. LLM comment highlights) change the
+// ProseMirror doc object but produce identical serialised markdown, so
+// comparing doc references is insufficient. Instead, compare the serialised
+// output — only overwrite rawMarkdown when text content actually changed.
+editor.on('update', () => {
+  if (!isExternallyUpdating) {
+    const serialized = editor.storage.markdown.getMarkdown();
+    if (serialized !== lastKnownSerialized) {
+      rawMarkdown = serialized;
+      lastKnownSerialized = serialized;
+    }
   }
 });
 

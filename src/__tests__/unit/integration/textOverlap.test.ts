@@ -72,9 +72,11 @@ describe('Phase 7: text-flow overlap round-trip', () => {
     expect(h.clipboardSpy).toHaveBeenCalledTimes(1);
     const payload = h.clipboardSpy.mock.calls[0][0] as string;
 
-    // Two blocks → labelled "Comment-1:" / "Comment-2:".
-    expect(payload).toContain('Comment-1:');
-    expect(payload).toContain('Comment-2:');
+    // Two blocks → labelled "Comment 1 — " / "Comment 2 — " with "Feedback-1:" / "Feedback-2:".
+    expect(payload).toContain('Comment 1 — ');
+    expect(payload).toContain('Comment 2 — ');
+    expect(payload).toContain('Feedback-1:');
+    expect(payload).toContain('Feedback-2:');
 
     // Bodies appear in deterministic order (A createdAt 100 before B createdAt 200).
     const idxA = payload.indexOf('rewrite A');
@@ -82,8 +84,8 @@ describe('Phase 7: text-flow overlap round-trip', () => {
     expect(idxA).toBeGreaterThanOrEqual(0);
     expect(idxB).toBeGreaterThan(idxA);
 
-    // Two blocks are separated by the "-----" divider.
-    expect(payload).toContain('-----');
+    // Two blocks are separated by the "---" divider.
+    expect(payload).toContain('\n\n---\n\n');
 
     // P8 — live quoted text per block. The store's fallback walk collects the
     // text content of all nodes carrying a given mark id. With overlapping

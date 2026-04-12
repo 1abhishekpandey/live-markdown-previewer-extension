@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core';
+import type { LineMap } from './lineMap';
 
 export interface LlmComment {
   id: string;
@@ -66,7 +67,12 @@ export class LlmCommentStore {
     };
   }
 
-  toPayload(editor: Editor, filePath: string): string {
+  toPayload(
+    editor: Editor,
+    filePath: string,
+    lineMap?: LineMap | null,
+    rawMarkdown?: string,
+  ): string {
     if (this.comments.length === 0) {
       return '';
     }
@@ -83,18 +89,20 @@ export class LlmCommentStore {
 
     const totalCount = sorted.length;
     const blocks = sorted.map((comment, index) => {
-      const header = formatLineHeader(comment.startLine, comment.endLine);
-      const quoted = extractQuotedText(editor, comment);
-      const label = totalCount === 1 ? 'Comment:' : `Comment-${index + 1}:`;
+      const lineHeader = formatLineHeader(comment.startLine, comment.endLine);
+      const quoted = extractQuotedText(editor, comment, lineMap ?? null, rawMarkdown);
+      const commentLabel = totalCount === 1 ? 'Comment' : `Comment ${index + 1}`;
+      const feedbackLabel = totalCount === 1 ? 'Feedback:' : `Feedback-${index + 1}:`;
       return (
-        `${header} — Selected text:\n` +
+        `${commentLabel} — ${lineHeader}:\n` +
+        `Selected text:\n` +
         `"""\n${quoted}\n"""\n\n` +
-        `${label}\n` +
+        `${feedbackLabel}\n` +
         `"""\n${comment.body}\n"""`
       );
     });
 
-    return `File: ${filePath}\n\n` + blocks.join('\n\n-----\n\n');
+    return `File: \`${filePath}\`\n\n` + blocks.join('\n\n---\n\n');
   }
 
   private notify(): void {
@@ -111,9 +119,21 @@ function formatLineHeader(startLine: number, endLine: number): string {
   return `Lines ${startLine}-${endLine}`;
 }
 
-function extractQuotedText(editor: Editor, comment: LlmComment): string {
+function extractQuotedText(
+  editor: Editor,
+  comment: LlmComment,
+  lineMap: LineMap | null,
+  rawMarkdown?: string,
+): string {
+  // Primary path: extract directly from raw markdown — preserves newlines,
+  // includes code blocks, and matches exactly what an LLM reads from the file.
+  if (rawMarkdown) {
+    const lines = rawMarkdown.split('\n');
+    return lines.slice(comment.startLine - 1, comment.endLine).join('\n');
+  }
+  // Test/fallback path when rawMarkdown is not available.
   if (comment.kind === 'line') {
-    return extractLineText(editor, comment.startLine);
+    return extractLineText(editor, comment.startLine, lineMap);
   }
   return extractMarkText(editor, comment.id);
 }
@@ -126,12 +146,23 @@ interface MarkTextStorage {
   getTextForId(id: string): string;
 }
 
-function extractLineText(editor: Editor, line: number): string {
-  const lineMap = (editor.storage as Record<string, unknown> | undefined)?.['llmLineMap'] as
+function extractLineText(editor: Editor, line: number, lineMap: LineMap | null): string {
+  // Primary path: use the real lineMap when available (line is 1-indexed; lineToPos is 0-indexed).
+  if (lineMap) {
+    const pos = lineMap.lineToPos.get(line - 1);
+    if (pos !== undefined) {
+      const node = editor.state?.doc?.nodeAt(pos);
+      return node?.textContent ?? '';
+    }
+    return '';
+  }
+
+  // Test fallback: honour editor.storage.llmLineMap mock if provided.
+  const storageLm = (editor.storage as Record<string, unknown> | undefined)?.['llmLineMap'] as
     | LineMapStorage
     | undefined;
-  if (lineMap && typeof lineMap.getTextForLine === 'function') {
-    return lineMap.getTextForLine(line) ?? '';
+  if (storageLm && typeof storageLm.getTextForLine === 'function') {
+    return storageLm.getTextForLine(line) ?? '';
   }
 
   const doc = editor.state?.doc;

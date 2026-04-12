@@ -69,9 +69,9 @@ describe('Phase 7: line-flow round-trip', () => {
     const payload = h.clipboardSpy.mock.calls[0][0] as string;
 
     // Structural assertions — the LLD payload format.
-    expect(payload.startsWith('File: docs/demo.md')).toBe(true);
-    expect(payload).toContain('Line 3 — Selected text:');
-    expect(payload).toContain('Comment:');
+    expect(payload.startsWith('File: `docs/demo.md`')).toBe(true);
+    expect(payload).toContain('Comment — Line 3:');
+    expect(payload).toContain('Feedback:');
     expect(payload).toContain('expand this');
     // Triple-quote fences must wrap both the selected-text and body blocks.
     const fenceCount = (payload.match(/"""/g) ?? []).length;

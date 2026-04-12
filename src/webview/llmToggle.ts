@@ -3,6 +3,7 @@ import type { LlmCommentStore } from './llmCommentStore';
 import type { CommentToggle } from './commentToggle';
 import type { CommentPanel } from './commentPanel';
 import type { LlmSelectionAnchor } from './llmSelectionAnchor';
+import type { LineMap } from './lineMap';
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -31,6 +32,8 @@ export class LlmToggle {
 
   private updateIndicator: UpdateIndicatorFn;
   private rebuildLineMap: () => void;
+  private getLineMap: () => LineMap | null;
+  private getRawMarkdown: () => string;
   private docUpdateListener: (() => void) | null = null;
   private storeUnsubscribe: (() => void) | null = null;
   private errorBannerEl: HTMLDivElement;
@@ -53,6 +56,8 @@ export class LlmToggle {
     selectionAnchor: LlmSelectionAnchor,
     updateIndicator: UpdateIndicatorFn,
     rebuildLineMap: () => void,
+    getLineMap: () => LineMap | null = () => null,
+    getRawMarkdown: () => string = () => '',
   ) {
     this.editor = editor;
     this.vscode = vscode;
@@ -62,6 +67,8 @@ export class LlmToggle {
     this.selectionAnchor = selectionAnchor;
     this.updateIndicator = updateIndicator;
     this.rebuildLineMap = rebuildLineMap;
+    this.getLineMap = getLineMap;
+    this.getRawMarkdown = getRawMarkdown;
 
     // Row 1: title-bar toggle (always visible)
     this.toggleBtn = document.createElement('button');
@@ -177,7 +184,12 @@ export class LlmToggle {
   }
 
   private async onCopyAllClick(): Promise<void> {
-    const payload = this.store.toPayload(this.editor, this.workspaceRelativePath);
+    const payload = this.store.toPayload(
+      this.editor,
+      this.workspaceRelativePath,
+      this.getLineMap(),
+      this.getRawMarkdown(),
+    );
     if (!payload) return; // empty store — silent no-op
 
     if (typeof navigator === 'undefined' || !navigator.clipboard) {

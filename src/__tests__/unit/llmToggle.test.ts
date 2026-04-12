@@ -226,7 +226,7 @@ describe('LlmToggle', () => {
 
     expect(writeText).toHaveBeenCalledTimes(1);
     const arg = writeText.mock.calls[0][0] as string;
-    expect(arg).toContain('File: docs/demo.md');
+    expect(arg).toContain('File: `docs/demo.md`');
     expect(arg).toContain('hello world');
     expect(queryCopyAllBtn().textContent).toBe('Copied ✓');
 
