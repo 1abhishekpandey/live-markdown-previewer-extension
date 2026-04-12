@@ -356,7 +356,7 @@ export class CommentPanel {
     const body = document.createElement('div');
     body.className = 'comment-panel-body';
 
-    if (opts.mode === 'llm-assist') {
+    if (opts.mode === 'llm-assist' && this.currentLlmMode !== 'newText') {
       if (this.llmStore && this.currentLine !== null) {
         const entries = this.llmStore.getForLine(this.currentLine);
         if (entries.length > 1) {
@@ -367,7 +367,7 @@ export class CommentPanel {
           body.appendChild(this.renderLlmThread(entries[idx]));
         }
       }
-    } else {
+    } else if (opts.mode !== 'llm-assist') {
       for (const comment of opts.comments) {
         body.appendChild(this.renderComment(comment));
       }
@@ -378,8 +378,8 @@ export class CommentPanel {
 
     panel.appendChild(body);
 
-    // LLM copy section (between body and textarea)
-    if (opts.mode === 'llm-assist' && this.llmStore && this.currentLine !== null) {
+    // LLM copy section (between body and textarea) — skip for newText (fresh box)
+    if (opts.mode === 'llm-assist' && this.currentLlmMode !== 'newText' && this.llmStore && this.currentLine !== null) {
       const entries = this.llmStore.getForLine(this.currentLine);
       if (entries.length > 0) {
         panel.appendChild(this.buildCopySection());
@@ -549,8 +549,10 @@ export class CommentPanel {
     if (!body) return;
 
     if (this.currentLlmMode === 'newText' && this.pendingLlmCreation) {
+      const savedCommentId = this.pendingLlmCreation.commentId;
+      const savedLine = this.pendingLlmCreation.startLine;
       this.llmStore.add({
-        id: this.pendingLlmCreation.commentId,
+        id: savedCommentId,
         kind: 'text',
         body,
         createdAt: this.pendingLlmCreation.createdAt,
@@ -558,7 +560,15 @@ export class CommentPanel {
         endLine: this.pendingLlmCreation.endLine,
       });
       this.pendingLlmCreation = null;
-      this.close();
+
+      // Transition to line view — show the new comment as a navigable thread entry
+      this.currentLlmMode = 'line';
+      this.currentLlmCommentId = null;
+      const roots = this.llmStore.getForLine(savedLine);
+      const newIdx = roots.findIndex(r => r.id === savedCommentId);
+      if (newIdx >= 0) this.currentLlmIndex = newIdx;
+      textarea.value = '';
+      this.rerenderLlmBody();
     } else if (this.currentLlmMode === 'line' && this.currentLine !== null) {
       const line1 = this.currentLine;
       const id = this.makeLlmId();
@@ -722,9 +732,9 @@ export class CommentPanel {
     copyBtn.className = 'llm-copy-single';
     copyBtn.textContent = 'Copy';
     copyBtn.addEventListener('click', () => {
-      if (!this.llmStore || !this.editor || this.currentLine === null) return;
-      const payload = this.llmStore.toLinePayload(
-        this.currentLine,
+      if (!this.llmStore || !this.editor || !this.currentThreadRootId) return;
+      const payload = this.llmStore.toThreadPayload(
+        this.currentThreadRootId,
         this.editor,
         this.getFilePath(),
         this.getLineMap(),

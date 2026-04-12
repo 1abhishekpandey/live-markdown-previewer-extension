@@ -132,6 +132,21 @@ export class LlmCommentStore {
     return `File: \`${filePath}\`\n\n` + blocks.join('\n\n---\n\n');
   }
 
+  toThreadPayload(
+    rootId: string,
+    editor: Editor,
+    filePath: string,
+    lineMap?: LineMap | null,
+    rawMarkdown?: string,
+  ): string {
+    const root = this.comments.find(c => c.id === rootId && !c.parentId);
+    if (!root) return '';
+
+    const replies = this.getReplies(rootId);
+    const block = formatThreadBlock([root, ...replies], 0, 1, editor, lineMap ?? null, rawMarkdown);
+    return `File: \`${filePath}\`\n\n` + block;
+  }
+
   private notify(): void {
     for (const listener of this.listeners) {
       listener();

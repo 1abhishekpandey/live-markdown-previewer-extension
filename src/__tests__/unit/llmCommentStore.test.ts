@@ -664,4 +664,75 @@ describe('LlmCommentStore — threading', () => {
     expect(payload).toContain('File: `test.md`');
     expect(payload).toContain('Comment — Line 5:');
   });
+
+  it('T9: toThreadPayload copies only the specified thread', () => {
+    const store = new LlmCommentStore();
+    // Thread A on line 5
+    store.add({
+      id: 'root-a',
+      kind: 'line',
+      body: 'thread A root',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'reply-a',
+      kind: 'line',
+      body: 'thread A reply',
+      createdAt: 150,
+      startLine: 5,
+      endLine: 5,
+      parentId: 'root-a',
+    });
+    // Thread B on same line
+    store.add({
+      id: 'root-b',
+      kind: 'line',
+      body: 'thread B root',
+      createdAt: 200,
+      startLine: 5,
+      endLine: 5,
+    });
+
+    const editor = makeMockEditor({ lineText: { 5: 'line five' } });
+
+    const payloadA = store.toThreadPayload('root-a', editor, 'f.md');
+    expect(payloadA).toContain('thread A root\n\nthread A reply');
+    expect(payloadA).not.toContain('thread B');
+    // Single thread — un-numbered
+    expect(payloadA).toContain('Comment — Line 5:');
+    expect(payloadA).not.toContain('Comment 1');
+
+    const payloadB = store.toThreadPayload('root-b', editor, 'f.md');
+    expect(payloadB).toContain('thread B root');
+    expect(payloadB).not.toContain('thread A');
+  });
+
+  it('T10: toThreadPayload returns empty for unknown or reply id', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'root',
+      kind: 'line',
+      body: 'root',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'reply',
+      kind: 'line',
+      body: 'reply',
+      createdAt: 200,
+      startLine: 5,
+      endLine: 5,
+      parentId: 'root',
+    });
+
+    const editor = makeMockEditor({ lineText: { 5: 'text' } });
+
+    expect(store.toThreadPayload('nonexistent', editor, 'f.md')).toBe('');
+    // reply id is not a root, so should return empty
+    expect(store.toThreadPayload('reply', editor, 'f.md')).toBe('');
+  });
 });

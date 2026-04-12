@@ -215,9 +215,9 @@ function buildLlmDecorations(
     // Convert 0-indexed to 1-indexed at the boundary.
     const line1 = range.startLine + 1;
 
-    // Count comments whose range covers this line.
+    // Count root comments (not replies) whose range covers this line.
     const count = llmComments.filter(
-      (c) => c.startLine <= line1 && line1 <= c.endLine,
+      (c) => c.startLine <= line1 && line1 <= c.endLine && !c.parentId,
     ).length;
 
     if (count === 0) {

@@ -540,4 +540,80 @@ describe('CommentPanel (LLM-Assist mode)', () => {
     // Panel should show no entries
     expect(container.querySelectorAll('.llm-comment-entry').length).toBe(0);
   });
+
+  // T-P7: openLlmNewText shows fresh empty box (no existing comments)
+  it('T-P7: openLlmNewText shows fresh box, not existing comments', () => {
+    // Pre-existing comment on line 5
+    llmStore.add(makeLlmComment({ id: 'existing', body: 'existing note', startLine: 5, endLine: 5, createdAt: 100 }));
+
+    panel.openLlmNewText('new-id', anchor, 5, 5);
+
+    // No existing comment entries shown
+    const entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(0);
+
+    // No navigation
+    const nav = container.querySelector('.llm-nav');
+    expect(nav).toBeNull();
+
+    // No copy section
+    const copySection = container.querySelector('.llm-copy-section');
+    expect(copySection).toBeNull();
+
+    // Textarea is empty and focused
+    const textarea = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+    expect(textarea.value).toBe('');
+  });
+
+  // T-P8: After saving newText, panel transitions to line view with navigation
+  it('T-P8: Saving newText transitions to line view showing new comment as navigable entry', () => {
+    // Pre-existing comment on line 5
+    llmStore.add(makeLlmComment({ id: 'existing', body: 'existing note', startLine: 5, endLine: 5, createdAt: 100 }));
+
+    panel.openLlmNewText('new-text-id', anchor, 5, 5);
+
+    // Save the new text comment
+    const textarea = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    textarea.value = 'new text comment';
+    const btn = container.querySelector('.comment-reply-queue') as HTMLButtonElement;
+    btn.click();
+
+    // Panel should still be open (not closed)
+    expect(panel.isOpen()).toBe(true);
+
+    // Should now show entries (transitioned to line view)
+    const entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBeGreaterThan(0);
+
+    // Navigation should show "X of 2" (existing + new)
+    const navLabel = container.querySelector('.llm-nav-label');
+    expect(navLabel).not.toBeNull();
+    expect(navLabel!.textContent).toContain('of 2');
+  });
+
+  // T-P9: Copy button copies only the current thread
+  it('T-P9: Copy button copies only the currently displayed thread', async () => {
+    // Thread 1
+    llmStore.add(makeLlmComment({ id: 'root-a', body: 'thread A note', startLine: 5, endLine: 5, createdAt: 100 }));
+    llmStore.add({ ...makeLlmComment({ id: 'reply-a', body: 'thread A reply', startLine: 5, endLine: 5, createdAt: 150 }), parentId: 'root-a' });
+    // Thread 2
+    llmStore.add(makeLlmComment({ id: 'root-b', body: 'thread B note', startLine: 5, endLine: 5, createdAt: 200 }));
+
+    panel.openLlmLine(5, anchor);
+
+    // Click copy (currently showing thread A)
+    const copyBtn = container.querySelector('.llm-copy-single') as HTMLButtonElement;
+    expect(copyBtn).not.toBeNull();
+    copyBtn.click();
+
+    // Wait for async clipboard
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(clipboardWriteText).toHaveBeenCalledTimes(1);
+    const copied = clipboardWriteText.mock.calls[0][0] as string;
+    expect(copied).toContain('thread A note');
+    expect(copied).toContain('thread A reply');
+    expect(copied).not.toContain('thread B');
+  });
 });
