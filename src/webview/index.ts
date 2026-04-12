@@ -406,6 +406,26 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
 editorElement?.addEventListener('click', (e: MouseEvent) => {
   const target = e.target as HTMLElement | null;
   if (!target) return;
+
+  // Per-line "+" button on a fresh commentable line (no comment yet).
+  // The + is a CSS ::after at right: 8px, 22 px wide — treat the rightmost 38 px
+  // as the click zone, matching the review-mode threshold.
+  if (llmToggle.isActive()) {
+    const commentableLine = target.closest('.llm-line-commentable[data-llm-line]') as HTMLElement | null;
+    if (commentableLine) {
+      const rect = commentableLine.getBoundingClientRect();
+      if (e.clientX >= rect.right - 38) {
+        const line1 = Number(commentableLine.getAttribute('data-llm-line'));
+        if (!isNaN(line1)) {
+          e.stopPropagation();
+          e.preventDefault();
+          commentPanel.openLlmLine(line1, commentableLine);
+          return;
+        }
+      }
+    }
+  }
+
   if (dispatchLlmEditorClick(target, llmToggle, llmStore, commentPanel)) {
     e.stopPropagation();
     e.preventDefault();

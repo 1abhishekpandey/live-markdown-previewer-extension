@@ -221,6 +221,7 @@ function buildLlmDecorations(
       decorations.push(
         Decoration.node(pos, pos + node.nodeSize, {
           class: 'llm-line-commentable',
+          'data-llm-line': String(line1),
         }),
       );
     } else {
