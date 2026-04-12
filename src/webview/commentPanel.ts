@@ -114,7 +114,21 @@ export class CommentPanel {
   openLlmLine(line1: number, anchorEl: HTMLElement): void {
     if (!this.llmStore) return;
     this.close();
-    this.currentLine = line1;
+
+    // Expand to full block range for multi-line nodes (code blocks, tables).
+    let effectiveEnd = line1;
+    const lineMap = this.getLineMap();
+    if (lineMap) {
+      const pos = lineMap.lineToPos.get(line1 - 1);
+      if (pos !== undefined) {
+        const range = lineMap.posToLineRange.get(pos);
+        if (range && range.endLine > range.startLine + 1) {
+          effectiveEnd = range.endLine;
+        }
+      }
+    }
+
+    this.currentLine = effectiveEnd;
     this.currentStartLine = line1;
     this.currentLlmMode = 'line';
     this.currentLlmCommentId = null;
@@ -122,7 +136,7 @@ export class CommentPanel {
     this.currentThreadRootId = null;
 
     this.panelEl = this.buildPanel({
-      headerText: this.formatLineHeader(line1, line1),
+      headerText: this.formatLineHeader(effectiveEnd, line1),
       commentCount: this.llmStore.getForLine(line1).length,
       comments: [],
       pendingComments: [],
@@ -570,7 +584,8 @@ export class CommentPanel {
       textarea.value = '';
       this.rerenderLlmBody();
     } else if (this.currentLlmMode === 'line' && this.currentLine !== null) {
-      const line1 = this.currentLine;
+      const endLine = this.currentLine;
+      const startLine = this.currentStartLine ?? endLine;
       const id = this.makeLlmId();
 
       if (this.currentThreadRootId === null) {
@@ -580,8 +595,8 @@ export class CommentPanel {
           kind: 'line',
           body,
           createdAt: Date.now(),
-          startLine: line1,
-          endLine: line1,
+          startLine,
+          endLine,
         });
         this.currentThreadRootId = id;
       } else {
@@ -591,8 +606,8 @@ export class CommentPanel {
           kind: 'line',
           body,
           createdAt: Date.now(),
-          startLine: line1,
-          endLine: line1,
+          startLine,
+          endLine,
           parentId: this.currentThreadRootId,
         });
       }

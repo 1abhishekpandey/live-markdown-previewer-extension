@@ -196,7 +196,9 @@ function extractQuotedText(
   // Text comments: extract only the marked (selected) text from the editor,
   // not the full line(s). The mark covers exactly what the user highlighted.
   if (comment.kind === 'text') {
-    return extractMarkText(editor, comment.id);
+    const markText = extractMarkText(editor, comment.id);
+    if (markText) return markText;
+    // Mark not applied (e.g. code block) — fall through to line extraction
   }
   // Line comments: extract full line(s) from raw markdown when available.
   if (rawMarkdown) {

@@ -55,6 +55,7 @@ function makeMockEditor(editorDom: HTMLElement, opts: MockEditorOpts = {}): Mock
       },
       coordsAtPos,
       dom: editorDom,
+      nodeDOM: () => null,
     },
     chain: () => ({
       focus: () => ({

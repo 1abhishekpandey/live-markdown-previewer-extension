@@ -162,10 +162,19 @@ export class LlmSelectionAnchor {
     this.editor.chain().focus().setLlmComment({ commentId }).run();
 
     // Find the first rendered span carrying the new id to use as the anchor.
-    const anchorEl =
-      (document.querySelector(
-        `[data-llm-comment-id="${commentId}"]`,
-      ) as HTMLElement | null) ?? (view.dom as HTMLElement);
+    let anchorEl = document.querySelector(
+      `[data-llm-comment-id="${commentId}"]`,
+    ) as HTMLElement | null;
+
+    if (!anchorEl) {
+      // Mark not applied (e.g. code block). Use the block element at the
+      // selection start as anchor so the panel appears next to it.
+      const domAtStart = view.nodeDOM($from.before(1));
+      anchorEl =
+        domAtStart instanceof HTMLElement
+          ? domAtStart
+          : (view.dom as HTMLElement);
+    }
 
     this.panel.openLlmNewText(commentId, anchorEl, startLine, endLineInclusive);
 
