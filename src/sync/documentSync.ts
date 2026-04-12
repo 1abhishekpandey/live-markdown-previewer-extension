@@ -225,17 +225,36 @@ export class DocumentSyncManager {
       } else {
         const LOOK = 15;
         let bestB = -1, bestO = -1, bestCost = Infinity;
+        let bestIsContent = false;
 
         for (let db = 0; db < LOOK && b + db < baseLines.length; db++) {
           for (let dj = 0; dj < LOOK && o + dj < origLines.length; dj++) {
-            if (baseLines[b + db] === origLines[o + dj] && db + dj < bestCost) {
-              bestB = b + db;
-              bestO = o + dj;
-              bestCost = db + dj;
+            if (baseLines[b + db] === origLines[o + dj]) {
+              const rawCost = db + dj;
+              const isContent = baseLines[b + db].trim() !== '';
+
+              // Content-line matches anchor the alignment better than blank
+              // lines, which repeat frequently and cause misalignment when
+              // baseline diverges from original (e.g. HTML normalisation).
+              let shouldUpdate = false;
+              if (bestB === -1) {
+                shouldUpdate = true;
+              } else if (isContent && !bestIsContent) {
+                shouldUpdate = true;
+              } else if (isContent === bestIsContent && rawCost < bestCost) {
+                shouldUpdate = true;
+              }
+
+              if (shouldUpdate) {
+                bestB = b + db;
+                bestO = o + dj;
+                bestCost = rawCost;
+                bestIsContent = isContent;
+              }
               break;
             }
           }
-          if (bestCost <= db) break;
+          if (bestIsContent && bestCost <= db) break;
         }
 
         if (bestB !== -1) {
