@@ -204,6 +204,16 @@ const llmToggle = new LlmToggle(
   rebuildLlmLineMap,
 );
 
+// Assemble the right-side toolbar as a connected button group.
+// Buttons are collected after all constructors have appended them to body.
+const toolbarRight = document.createElement('div');
+toolbarRight.id = 'toolbar-right';
+['.llm-toggle', '.review-toggle', '.copy-mode-toggle', '.code-wrap-toggle'].forEach(sel => {
+  const el = document.querySelector(sel);
+  if (el) toolbarRight.appendChild(el);
+});
+document.body.appendChild(toolbarRight);
+
 llmStore.onChange(() => {
   if (!llmToggle.isActive()) return;
   const current = getCommentIndicatorState(editor.view);

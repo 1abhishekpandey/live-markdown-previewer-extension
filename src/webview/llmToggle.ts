@@ -13,7 +13,7 @@ interface UpdateIndicatorFn {
 }
 
 /**
- * Owns the "Assist: Off / On" title-bar toggle, the Copy all / Clear all action
+ * Owns the "LLM-Assist: Off / On" title-bar toggle, the Copy all / Clear all action
  * row, and the activate/deactivate state transitions for LLM-assist mode.
  *
  * LLM-assist and Review mode are mutually exclusive — toggling LLM-assist on
@@ -66,7 +66,7 @@ export class LlmToggle {
     // Row 1: title-bar toggle (always visible)
     this.toggleBtn = document.createElement('button');
     this.toggleBtn.className = 'llm-toggle';
-    this.toggleBtn.textContent = 'Assist: Off';
+    this.toggleBtn.textContent = 'LLM-Assist: Off';
     this.toggleBtn.addEventListener('click', () => this.toggle());
     document.body.appendChild(this.toggleBtn);
 
@@ -136,7 +136,8 @@ export class LlmToggle {
     };
     this.editor.on('update', this.docUpdateListener);
 
-    this.toggleBtn.textContent = 'Assist: On';
+    this.toggleBtn.textContent = 'LLM-Assist: On';
+    this.toggleBtn.classList.add('active');
     this.selectionAnchor.setActive(true);
     // barEl visibility is governed by updateActionRow (N === 0 → hidden).
     this.updateActionRow();
@@ -153,7 +154,8 @@ export class LlmToggle {
       this.docUpdateListener = null;
     }
 
-    this.toggleBtn.textContent = 'Assist: Off';
+    this.toggleBtn.textContent = 'LLM-Assist: Off';
+    this.toggleBtn.classList.remove('active');
     this.selectionAnchor.setActive(false);
     this.barEl.style.display = 'none';
     // Clear any lingering copy-label timer

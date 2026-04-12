@@ -149,6 +149,33 @@ html, body {
   border-radius: 0;
 }
 
+/* Right-side toolbar: all 4 toggle buttons connected as a single button group */
+#toolbar-right {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Override individual fixed positioning when buttons sit inside the container */
+#toolbar-right button {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  border: none;
+  border-radius: 0;
+}
+
+/* Vertical divider between adjacent buttons */
+#toolbar-right button + button {
+  border-left: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+}
+
 /* Code wrap toggle */
 .code-wrap-toggle {
   position: fixed;
@@ -1115,30 +1142,38 @@ html, body {
   transform: scale(1.15);
 }
 
-/* Title-bar toggle button, mirrors .review-toggle positioning. */
+/* Title-bar toggle button — matches .review-toggle / .copy-mode-toggle styling. */
 .llm-toggle {
   position: fixed;
   top: 8px;
-  right: 200px;
-  z-index: 40;
-  padding: 4px 10px;
+  right: 226px;
+  z-index: 100;
+  padding: 3px 8px;
   background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
   color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
-  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
+  font-family: var(--vscode-font-family, sans-serif);
   cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
 }
 
 .llm-toggle:hover {
-  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.3));
+  opacity: 1;
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+.llm-toggle.active {
+  opacity: 1;
 }
 
 /* Row 2: Copy all + Clear all action row. */
 .llm-bar {
   position: fixed;
   top: 36px;
-  right: 200px;
+  right: 226px;
   z-index: 40;
   display: flex;
   flex-direction: column;

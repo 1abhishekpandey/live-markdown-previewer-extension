@@ -26,13 +26,13 @@ describe('Phase 7: mode mutex round-trip', () => {
 
     // Toggle button label should still say "Off".
     const toggleBtn = document.querySelector('.llm-toggle') as HTMLButtonElement;
-    expect(toggleBtn.textContent).toBe('Assist: Off');
+    expect(toggleBtn.textContent).toBe('LLM-Assist: Off');
 
     // Step 2 — review mode off. Flip the stub, retry, expect activation.
     h.commentToggleMock.isActive.mockReturnValue(false);
 
     h.llmToggle.toggle();
     expect(h.llmToggle.isActive()).toBe(true);
-    expect(toggleBtn.textContent).toBe('Assist: On');
+    expect(toggleBtn.textContent).toBe('LLM-Assist: On');
   });
 });

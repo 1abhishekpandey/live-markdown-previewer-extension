@@ -55,7 +55,7 @@ describe('Phase 7: toggle-off wipe round-trip', () => {
 
     // Toggle button resets and action row hides.
     const toggleBtn = document.querySelector('.llm-toggle') as HTMLButtonElement;
-    expect(toggleBtn.textContent).toBe('Assist: Off');
+    expect(toggleBtn.textContent).toBe('LLM-Assist: Off');
     const bar = document.querySelector('.llm-bar') as HTMLDivElement;
     expect(bar.style.display).toBe('none');
   });

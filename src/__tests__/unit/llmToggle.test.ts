@@ -138,9 +138,9 @@ afterEach(() => {
 // ---------- tests ----------
 
 describe('LlmToggle', () => {
-  it('T1: initial state — "Assist: Off" and bar hidden', () => {
+  it('T1: initial state — "LLM-Assist: Off" and bar hidden', () => {
     build();
-    expect(queryToggleBtn().textContent).toBe('Assist: Off');
+    expect(queryToggleBtn().textContent).toBe('LLM-Assist: Off');
     expect(queryBar().style.display).toBe('none');
   });
 
@@ -152,7 +152,7 @@ describe('LlmToggle', () => {
     expect(banner).not.toBeNull();
     expect(banner.textContent).toBe('Review mode is active — toggle it off first');
     expect(banner.style.display).not.toBe('none');
-    expect(queryToggleBtn().textContent).toBe('Assist: Off');
+    expect(queryToggleBtn().textContent).toBe('LLM-Assist: Off');
 
     const activateCall = h.updateIndicator.mock.calls.find(
       (c: unknown[]) => (c[0] as { llmAssistActive?: boolean }).llmAssistActive === true,
@@ -170,7 +170,7 @@ describe('LlmToggle', () => {
       llmComments: [],
     });
     expect(h.editor.on).toHaveBeenCalledWith('update', expect.any(Function));
-    expect(queryToggleBtn().textContent).toBe('Assist: On');
+    expect(queryToggleBtn().textContent).toBe('LLM-Assist: On');
     expect(h.selectionAnchor.setActive).toHaveBeenCalledWith(true);
   });
 
@@ -299,7 +299,7 @@ describe('LlmToggle', () => {
     h.store.add(makeComment({ id: 'a' }));
 
     // sanity — we're now active
-    expect(queryToggleBtn().textContent).toBe('Assist: On');
+    expect(queryToggleBtn().textContent).toBe('LLM-Assist: On');
 
     // Clear prior call history so we only see the deactivate-time call.
     h.updateIndicator.mockClear();
@@ -313,7 +313,7 @@ describe('LlmToggle', () => {
       llmComments: [],
     });
     expect(h.editor.off).toHaveBeenCalledWith('update', expect.any(Function));
-    expect(queryToggleBtn().textContent).toBe('Assist: Off');
+    expect(queryToggleBtn().textContent).toBe('LLM-Assist: Off');
     expect(queryBar().style.display).toBe('none');
     expect(h.selectionAnchor.setActive).toHaveBeenLastCalledWith(false);
   });
