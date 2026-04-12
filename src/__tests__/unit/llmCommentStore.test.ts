@@ -410,3 +410,258 @@ describe('LlmCommentStore — toPayload', () => {
     expect(out).not.toContain('\n\n---\n\n');
   });
 });
+
+describe('LlmCommentStore — toLinePayload', () => {
+  it('returns empty string when no comments on line', () => {
+    const store = new LlmCommentStore();
+    const editor = makeMockEditor();
+    const payload = store.toLinePayload(5, editor, 'test.md');
+    expect(payload).toBe('');
+  });
+
+  it('produces structured format for single comment', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'c1',
+      kind: 'line',
+      body: 'a note',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    const editor = makeMockEditor({ lineText: { 5: 'some line text' } });
+    const payload = store.toLinePayload(5, editor, 'test.md');
+    expect(payload).toContain('File: `test.md`');
+    expect(payload).toContain('Comment — Line 5:');
+    expect(payload).toContain('Feedback:');
+    expect(payload).toContain('a note');
+    // Single comment: no numbering
+    expect(payload).not.toContain('Comment 1');
+    expect(payload).not.toContain('Feedback-1');
+  });
+
+  it('produces numbered blocks for multiple comments on same line', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'c1',
+      kind: 'line',
+      body: 'first note',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'c2',
+      kind: 'line',
+      body: 'second note',
+      createdAt: 200,
+      startLine: 5,
+      endLine: 5,
+    });
+    const editor = makeMockEditor({ lineText: { 5: 'some line text' } });
+    const payload = store.toLinePayload(5, editor, 'test.md');
+    expect(payload).toContain('File: `test.md`');
+    expect(payload).toContain('Comment 1 — Line 5:');
+    expect(payload).toContain('Feedback-1:');
+    expect(payload).toContain('first note');
+    expect(payload).toContain('Comment 2 — Line 5:');
+    expect(payload).toContain('Feedback-2:');
+    expect(payload).toContain('second note');
+    expect(payload).toContain('---');
+  });
+
+  it('filters to the requested line only — ignores comments on other lines', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'on-5',
+      kind: 'line',
+      body: 'on line 5',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'on-9',
+      kind: 'line',
+      body: 'on line 9',
+      createdAt: 200,
+      startLine: 9,
+      endLine: 9,
+    });
+    const editor = makeMockEditor({ lineText: { 5: 'text five', 9: 'text nine' } });
+    const payload = store.toLinePayload(5, editor, 'test.md');
+    expect(payload).toContain('on line 5');
+    expect(payload).not.toContain('on line 9');
+  });
+});
+
+describe('LlmCommentStore — threading', () => {
+  it('T1: getForLine excludes replies (returns only roots)', () => {
+    const store = new LlmCommentStore();
+    store.add(makeComment({ id: 'root', startLine: 5, endLine: 5 }));
+    store.add(makeComment({ id: 'reply-1', startLine: 5, endLine: 5, parentId: 'root' }));
+    store.add(makeComment({ id: 'reply-2', startLine: 5, endLine: 5, parentId: 'root' }));
+
+    const roots = store.getForLine(5);
+    expect(roots.map(c => c.id)).toEqual(['root']);
+  });
+
+  it('T2: getReplies returns replies sorted by createdAt', () => {
+    const store = new LlmCommentStore();
+    store.add(makeComment({ id: 'root', startLine: 5, endLine: 5, createdAt: 100 }));
+    store.add(makeComment({ id: 'r2', startLine: 5, endLine: 5, parentId: 'root', createdAt: 300 }));
+    store.add(makeComment({ id: 'r1', startLine: 5, endLine: 5, parentId: 'root', createdAt: 200 }));
+
+    const replies = store.getReplies('root');
+    expect(replies.map(c => c.id)).toEqual(['r1', 'r2']);
+  });
+
+  it('T3: getReplies returns empty array for root with no replies', () => {
+    const store = new LlmCommentStore();
+    store.add(makeComment({ id: 'root', startLine: 5, endLine: 5 }));
+
+    expect(store.getReplies('root')).toEqual([]);
+  });
+
+  it('T4: removing a root cascade-deletes its replies', () => {
+    const store = new LlmCommentStore();
+    store.add(makeComment({ id: 'root', startLine: 5, endLine: 5 }));
+    store.add(makeComment({ id: 'r1', startLine: 5, endLine: 5, parentId: 'root' }));
+    store.add(makeComment({ id: 'r2', startLine: 5, endLine: 5, parentId: 'root' }));
+    store.add(makeComment({ id: 'other', startLine: 9, endLine: 9 }));
+
+    store.remove('root');
+
+    expect(store.getCount()).toBe(1);
+    expect(store.get('root')).toBeUndefined();
+    expect(store.get('r1')).toBeUndefined();
+    expect(store.get('r2')).toBeUndefined();
+    expect(store.get('other')).toBeDefined();
+  });
+
+  it('T5: removing a reply only removes that reply, not the root', () => {
+    const store = new LlmCommentStore();
+    store.add(makeComment({ id: 'root', startLine: 5, endLine: 5 }));
+    store.add(makeComment({ id: 'r1', startLine: 5, endLine: 5, parentId: 'root' }));
+    store.add(makeComment({ id: 'r2', startLine: 5, endLine: 5, parentId: 'root' }));
+
+    store.remove('r1');
+
+    expect(store.getCount()).toBe(2);
+    expect(store.get('root')).toBeDefined();
+    expect(store.get('r1')).toBeUndefined();
+    expect(store.get('r2')).toBeDefined();
+  });
+
+  it('T6: toPayload combines thread feedback bodies with double newline', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'root',
+      kind: 'line',
+      body: 'root feedback',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'r1',
+      kind: 'line',
+      body: 'reply one',
+      createdAt: 200,
+      startLine: 5,
+      endLine: 5,
+      parentId: 'root',
+    });
+    store.add({
+      id: 'r2',
+      kind: 'line',
+      body: 'reply two',
+      createdAt: 300,
+      startLine: 5,
+      endLine: 5,
+      parentId: 'root',
+    });
+
+    const editor = makeMockEditor({ lineText: { 5: 'some text' } });
+    const out = store.toPayload(editor, 'f.md');
+
+    // Single block (one root with replies = one Comment block)
+    expect(out).toContain('Comment — Line 5:');
+    expect(out).not.toContain('Comment 1');
+
+    // Combined feedback
+    expect(out).toContain('root feedback\n\nreply one\n\nreply two');
+
+    // No --- separator (single thread = single block)
+    expect(out).not.toContain('\n\n---\n\n');
+  });
+
+  it('T7: toPayload with multiple threads uses numbered blocks with --- separators', () => {
+    const store = new LlmCommentStore();
+    // Thread 1 on line 5
+    store.add({
+      id: 'root-a',
+      kind: 'line',
+      body: 'first thread root',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'reply-a',
+      kind: 'line',
+      body: 'first thread reply',
+      createdAt: 150,
+      startLine: 5,
+      endLine: 5,
+      parentId: 'root-a',
+    });
+    // Thread 2 on line 10
+    store.add({
+      id: 'root-b',
+      kind: 'line',
+      body: 'second thread root',
+      createdAt: 200,
+      startLine: 10,
+      endLine: 10,
+    });
+
+    const editor = makeMockEditor({ lineText: { 5: 'five', 10: 'ten' } });
+    const out = store.toPayload(editor, 'f.md');
+
+    expect(out).toContain('Comment 1 — Line 5:');
+    expect(out).toContain('Feedback-1:');
+    expect(out).toContain('first thread root\n\nfirst thread reply');
+    expect(out).toContain('Comment 2 — Line 10:');
+    expect(out).toContain('Feedback-2:');
+    expect(out).toContain('second thread root');
+    expect(out).toContain('\n\n---\n\n');
+  });
+
+  it('T8: toLinePayload combines thread feedback for a single line', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'root',
+      kind: 'line',
+      body: 'root body',
+      createdAt: 100,
+      startLine: 5,
+      endLine: 5,
+    });
+    store.add({
+      id: 'r1',
+      kind: 'line',
+      body: 'reply body',
+      createdAt: 200,
+      startLine: 5,
+      endLine: 5,
+      parentId: 'root',
+    });
+
+    const editor = makeMockEditor({ lineText: { 5: 'line text' } });
+    const payload = store.toLinePayload(5, editor, 'test.md');
+    expect(payload).toContain('root body\n\nreply body');
+    expect(payload).toContain('File: `test.md`');
+    expect(payload).toContain('Comment — Line 5:');
+  });
+});

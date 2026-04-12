@@ -1236,3 +1236,105 @@ html, body {
 .llm-line-commented {
   cursor: pointer;
 }
+
+/* LLM comment navigation (multi-comment lines) */
+.llm-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.llm-nav-btn {
+  background: none;
+  border: none;
+  color: var(--vscode-editor-foreground);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.llm-nav-btn:hover {
+  opacity: 1;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+}
+
+.llm-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.llm-nav-btn:disabled:hover {
+  background: none;
+}
+
+.llm-nav-label {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  user-select: none;
+}
+
+/* LLM copy section (bottom of panel, above textarea) */
+.llm-copy-section {
+  padding: 6px 12px;
+  border-top: 1px solid var(--vscode-editorWidget-border);
+}
+
+.llm-copy-single {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.llm-copy-single:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+/* LLM entry action buttons (Edit | Delete) */
+.llm-entry-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.llm-entry-actions button {
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.llm-entry-actions button:hover {
+  opacity: 1;
+  color: var(--vscode-editor-foreground);
+}
+
+/* LLM thread container */
+.llm-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* LLM reply entry (indented within thread) */
+.llm-reply-entry {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.3));
+}

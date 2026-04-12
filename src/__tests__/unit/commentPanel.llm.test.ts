@@ -26,9 +26,14 @@ function makeAnchorEl(): HTMLElement {
 }
 
 function makeFakeEditor() {
+  const tr = { setMeta: vi.fn().mockReturnThis() };
   return {
     commands: {
       unsetLlmCommentById: vi.fn(() => true),
+    },
+    view: {
+      state: { tr },
+      dispatch: vi.fn(),
     },
   } as unknown as import('@tiptap/core').Editor;
 }
@@ -129,8 +134,8 @@ describe('CommentPanel (LLM-Assist mode)', () => {
     expect(addSpy).not.toHaveBeenCalled();
   });
 
-  // L5: openLlmLine list order
-  it('L5: openLlmLine renders entries in store order (line first, then text by createdAt)', () => {
+  // L5: openLlmLine single-entry display with navigation
+  it('L5: openLlmLine renders single entry at a time; navigation available for multiple', () => {
     llmStore.add({
       id: 'line-A',
       kind: 'line',
@@ -158,10 +163,18 @@ describe('CommentPanel (LLM-Assist mode)', () => {
 
     panel.openLlmLine(7, anchor);
 
-    const bodies = Array.from(
-      container.querySelectorAll('.llm-comment-entry .comment-body'),
-    ).map((el) => el.textContent);
-    expect(bodies).toEqual(['line note', 'text note one', 'text note two']);
+    // Only one entry rendered at a time
+    const entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(1);
+
+    // First entry shown is the line-kind (sorted: line first, then text by createdAt)
+    const body = container.querySelector('.llm-comment-entry .comment-body');
+    expect(body!.textContent).toBe('line note');
+
+    // Navigation is present
+    const navLabel = container.querySelector('.llm-nav-label');
+    expect(navLabel).not.toBeNull();
+    expect(navLabel!.textContent).toBe('1 of 3');
   });
 
   // L6: openLlmText pre-fills textarea with existing body
@@ -216,8 +229,8 @@ describe('CommentPanel (LLM-Assist mode)', () => {
     expect(llmStore.get('Z')!.body).toBe('body text');
   });
 
-  // L9: Copy button writes body only
-  it('L9: Copy button writes only the body, never a File: payload', () => {
+  // L9: Copy button is at panel bottom, not in action row
+  it('L9: Copy button is at panel bottom, not in action row', () => {
     llmStore.add(makeLlmComment({
       id: 'c-1',
       kind: 'line',
@@ -228,14 +241,13 @@ describe('CommentPanel (LLM-Assist mode)', () => {
 
     panel.openLlmLine(4, anchor);
 
-    const copyBtn = container.querySelector('.llm-entry-copy') as HTMLButtonElement;
-    expect(copyBtn).not.toBeNull();
-    copyBtn.click();
+    // No copy in the action row
+    const actionCopy = container.querySelector('.llm-entry-copy');
+    expect(actionCopy).toBeNull();
 
-    expect(clipboardWriteText).toHaveBeenCalledTimes(1);
-    const arg = clipboardWriteText.mock.calls[0][0] as string;
-    expect(arg).toBe('my note');
-    expect(arg).not.toContain('File:');
+    // Copy button at panel bottom
+    const bottomCopy = container.querySelector('.llm-copy-single');
+    expect(bottomCopy).not.toBeNull();
   });
 
   // L10: Delete on text entry calls both store.remove and unsetLlmCommentById
@@ -305,5 +317,227 @@ describe('CommentPanel (LLM-Assist mode)', () => {
       container.querySelectorAll('.llm-comment-entry .comment-body'),
     ).map((el) => el.textContent);
     expect(bodies).toContain('added after open');
+  });
+
+  // Navigation: shows "1 of 3" when 3 comments on same line
+  it('Navigation shows "1 of N" when multiple comments on same line', () => {
+    llmStore.add(makeLlmComment({ id: 'a', body: 'first', startLine: 7, endLine: 7, createdAt: 100 }));
+    llmStore.add(makeLlmComment({ id: 'b', body: 'second', startLine: 7, endLine: 7, createdAt: 200 }));
+    llmStore.add(makeLlmComment({ id: 'c', body: 'third', startLine: 7, endLine: 7, createdAt: 300 }));
+
+    panel.openLlmLine(7, anchor);
+
+    const navLabel = container.querySelector('.llm-nav-label');
+    expect(navLabel).not.toBeNull();
+    expect(navLabel!.textContent).toBe('1 of 3');
+
+    // Only one comment entry rendered
+    const entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(1);
+  });
+
+  // Navigation: prev/next buttons cycle through comments
+  it('Prev/next buttons cycle through comments', () => {
+    llmStore.add(makeLlmComment({ id: 'a', body: 'first', startLine: 7, endLine: 7, createdAt: 100 }));
+    llmStore.add(makeLlmComment({ id: 'b', body: 'second', startLine: 7, endLine: 7, createdAt: 200 }));
+
+    panel.openLlmLine(7, anchor);
+
+    // Initially shows first
+    let body = container.querySelector('.llm-comment-entry .comment-body');
+    expect(body!.textContent).toBe('first');
+
+    // Click next
+    const nextBtn = container.querySelectorAll('.llm-nav-btn')[1] as HTMLButtonElement;
+    nextBtn.click();
+
+    body = container.querySelector('.llm-comment-entry .comment-body');
+    expect(body!.textContent).toBe('second');
+
+    const navLabel = container.querySelector('.llm-nav-label');
+    expect(navLabel!.textContent).toBe('2 of 2');
+
+    // Click prev
+    const prevBtn = container.querySelectorAll('.llm-nav-btn')[0] as HTMLButtonElement;
+    prevBtn.click();
+
+    body = container.querySelector('.llm-comment-entry .comment-body');
+    expect(body!.textContent).toBe('first');
+  });
+
+  // No navigation when single comment
+  it('No navigation UI when single comment on line', () => {
+    llmStore.add(makeLlmComment({ id: 'a', body: 'solo', startLine: 5, endLine: 5 }));
+
+    panel.openLlmLine(5, anchor);
+
+    const nav = container.querySelector('.llm-nav');
+    expect(nav).toBeNull();
+
+    const entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(1);
+  });
+
+  // Delete clamps currentLlmIndex
+  it('Deleting currently displayed comment clamps index', () => {
+    llmStore.add(makeLlmComment({ id: 'a', body: 'first', startLine: 7, endLine: 7, createdAt: 100 }));
+    llmStore.add(makeLlmComment({ id: 'b', body: 'second', startLine: 7, endLine: 7, createdAt: 200 }));
+    llmStore.add(makeLlmComment({ id: 'c', body: 'third', startLine: 7, endLine: 7, createdAt: 300 }));
+
+    panel.openLlmLine(7, anchor);
+
+    // Navigate to last (index 2) — re-query buttons after each click as DOM re-renders
+    ;(container.querySelectorAll('.llm-nav-btn')[1] as HTMLButtonElement).click(); // index 1
+    ;(container.querySelectorAll('.llm-nav-btn')[1] as HTMLButtonElement).click(); // index 2
+
+    let body = container.querySelector('.llm-comment-entry .comment-body');
+    expect(body!.textContent).toBe('third');
+
+    // Delete the third comment
+    llmStore.remove('c');
+
+    // After re-render, index should clamp to 1 (last valid)
+    body = container.querySelector('.llm-comment-entry .comment-body');
+    expect(body!.textContent).toBe('second');
+
+    const navLabel = container.querySelector('.llm-nav-label');
+    expect(navLabel!.textContent).toBe('2 of 2');
+  });
+
+  // T-P1: Second save creates a reply (parentId set)
+  it('T-P1: Second Save in line mode creates a reply with parentId', () => {
+    panel.openLlmLine(5, anchor);
+
+    // First save — creates root
+    const textarea = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    textarea.value = 'root comment';
+    const btn = container.querySelector('.comment-reply-queue') as HTMLButtonElement;
+    btn.click();
+
+    const allComments = llmStore.getAll();
+    expect(allComments.length).toBe(1);
+    const rootId = allComments[0].id;
+    expect(allComments[0].parentId).toBeUndefined();
+
+    // Second save — creates reply
+    const textarea2 = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    textarea2.value = 'reply to root';
+    const btn2 = container.querySelector('.comment-reply-queue') as HTMLButtonElement;
+    btn2.click();
+
+    const all = llmStore.getAll();
+    expect(all.length).toBe(2);
+    const reply = all.find(c => c.id !== rootId)!;
+    expect(reply.parentId).toBe(rootId);
+    expect(reply.body).toBe('reply to root');
+  });
+
+  // T-P2: Replies shown inline, no extra navigation
+  it('T-P2: Root + replies shown together without extra navigation entries', () => {
+    // Add a root with 2 replies
+    llmStore.add(makeLlmComment({ id: 'root-1', body: 'root body', startLine: 5, endLine: 5, createdAt: 100 }));
+    llmStore.add({ ...makeLlmComment({ id: 'r1', body: 'reply one', startLine: 5, endLine: 5, createdAt: 200 }), parentId: 'root-1' });
+    llmStore.add({ ...makeLlmComment({ id: 'r2', body: 'reply two', startLine: 5, endLine: 5, createdAt: 300 }), parentId: 'root-1' });
+
+    panel.openLlmLine(5, anchor);
+
+    // Only 1 root → no navigation
+    const nav = container.querySelector('.llm-nav');
+    expect(nav).toBeNull();
+
+    // Thread container exists
+    const thread = container.querySelector('.llm-thread');
+    expect(thread).not.toBeNull();
+
+    // 3 entries visible (root + 2 replies)
+    const entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(3);
+
+    // 2 replies have .llm-reply-entry class
+    const replyEntries = container.querySelectorAll('.llm-reply-entry');
+    expect(replyEntries.length).toBe(2);
+  });
+
+  // T-P3: Reply badge shows "Reply"
+  it('T-P3: Reply entries show "Reply" badge instead of "Line"', () => {
+    llmStore.add(makeLlmComment({ id: 'root-1', body: 'root', startLine: 5, endLine: 5, createdAt: 100 }));
+    llmStore.add({ ...makeLlmComment({ id: 'r1', body: 'reply', startLine: 5, endLine: 5, createdAt: 200 }), parentId: 'root-1' });
+
+    panel.openLlmLine(5, anchor);
+
+    const badges = Array.from(container.querySelectorAll('.comment-pending-label')).map(el => el.textContent);
+    expect(badges).toContain('Line');
+    expect(badges).toContain('Reply');
+  });
+
+  // T-P4: Navigation between threads (not replies)
+  it('T-P4: Navigation is between threads, not individual replies', () => {
+    // Thread 1: root + 1 reply
+    llmStore.add(makeLlmComment({ id: 'root-a', body: 'thread A root', startLine: 5, endLine: 5, createdAt: 100 }));
+    llmStore.add({ ...makeLlmComment({ id: 'reply-a', body: 'thread A reply', startLine: 5, endLine: 5, createdAt: 150 }), parentId: 'root-a' });
+
+    // Thread 2: root only
+    llmStore.add(makeLlmComment({ id: 'root-b', body: 'thread B root', startLine: 5, endLine: 5, createdAt: 200 }));
+
+    panel.openLlmLine(5, anchor);
+
+    // Navigation shows "1 of 2" (2 threads, not 3 individual comments)
+    const navLabel = container.querySelector('.llm-nav-label');
+    expect(navLabel).not.toBeNull();
+    expect(navLabel!.textContent).toBe('1 of 2');
+
+    // First view shows thread A (root + reply)
+    let entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(2); // root + reply
+    let bodies = Array.from(entries).map(e => e.querySelector('.comment-body')!.textContent);
+    expect(bodies).toContain('thread A root');
+    expect(bodies).toContain('thread A reply');
+
+    // Navigate to thread B
+    const nextBtn = container.querySelectorAll('.llm-nav-btn')[1] as HTMLButtonElement;
+    nextBtn.click();
+
+    entries = container.querySelectorAll('.llm-comment-entry');
+    expect(entries.length).toBe(1); // just root-b
+    const body = entries[0].querySelector('.comment-body')!.textContent;
+    expect(body).toBe('thread B root');
+
+    const navLabel2 = container.querySelector('.llm-nav-label');
+    expect(navLabel2!.textContent).toBe('2 of 2');
+  });
+
+  // T-P5: Textarea placeholder updates to "Type a reply..."
+  it('T-P5: Textarea placeholder changes to "Type a reply..." after first save', () => {
+    panel.openLlmLine(5, anchor);
+
+    // Initially "Type a comment..."
+    let textarea = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    expect(textarea.placeholder).toBe('Type a comment...');
+
+    // Save first comment
+    textarea.value = 'first comment';
+    const btn = container.querySelector('.comment-reply-queue') as HTMLButtonElement;
+    btn.click();
+
+    // After save and re-render, placeholder should update
+    textarea = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    expect(textarea.placeholder).toBe('Type a reply...');
+  });
+
+  // T-P6: Cascade delete removes thread from UI
+  it('T-P6: Deleting root removes entire thread from panel', () => {
+    llmStore.add(makeLlmComment({ id: 'root-1', body: 'root', startLine: 5, endLine: 5, createdAt: 100 }));
+    llmStore.add({ ...makeLlmComment({ id: 'r1', body: 'reply', startLine: 5, endLine: 5, createdAt: 200 }), parentId: 'root-1' });
+
+    panel.openLlmLine(5, anchor);
+
+    // Verify thread is shown
+    expect(container.querySelectorAll('.llm-comment-entry').length).toBe(2);
+
+    // Delete root — cascade removes reply too
+    llmStore.remove('root-1');
+
+    // Panel should show no entries
+    expect(container.querySelectorAll('.llm-comment-entry').length).toBe(0);
   });
 });

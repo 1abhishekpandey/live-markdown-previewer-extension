@@ -51,6 +51,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (data.type === 'init') {
     const path = (data as { workspaceRelativePath?: unknown }).workspaceRelativePath;
     if (typeof path === 'string') {
+      workspaceRelativePath = path;
       llmToggle.workspaceRelativePath = path;
     }
   }
@@ -176,7 +177,12 @@ copyToggle.addEventListener('click', () => {
 const pendingStore = new PendingCommentStore(vscode);
 const commentToggle = new CommentToggle(editor, vscode, pendingStore);
 const llmStore = new LlmCommentStore();
-const commentPanel = new CommentPanel(editorElement, pendingStore, vscode, llmStore, editor);
+const commentPanel = new CommentPanel(
+  editorElement, pendingStore, vscode, llmStore, editor,
+  () => workspaceRelativePath,
+  () => llmLineMap,
+  () => rawMarkdown,
+);
 
 // Register ProseMirror plugin for comment indicators
 const commentPlugin = createCommentIndicatorPlugin();
@@ -192,6 +198,7 @@ editor.registerPlugin(commentPlugin);
 // serialised version after each user edit.
 let llmLineMap: LineMap | null = null;
 let rawMarkdown = '';
+let workspaceRelativePath = '';
 let lastKnownSerialized = '';
 let isExternallyUpdating = false;
 const rebuildLlmLineMap = (): void => {

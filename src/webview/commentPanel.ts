@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core';
 import type { CommentThread, CommentData, PendingComment } from '../sync/commentTypes';
 import type { PendingCommentStore } from './pendingCommentStore';
 import type { LlmComment, LlmCommentStore } from './llmCommentStore';
+import type { LineMap } from './lineMap';
 import { updateCommentIndicatorState, getCommentIndicatorState } from './commentIndicator';
 
 interface VsCodeApi {
@@ -35,6 +36,8 @@ export class CommentPanel {
   private closeHandlers: (() => void)[] = [];
   private storeUnsubscribe: (() => void) | null = null;
   private llmStoreUnsubscribe: (() => void) | null = null;
+  private currentLlmIndex = 0;
+  private currentThreadRootId: string | null = null;
 
   constructor(
     container: HTMLElement,
@@ -42,6 +45,9 @@ export class CommentPanel {
     vscode: VsCodeApi,
     llmStore: LlmCommentStore | null = null,
     editor: Editor | null = null,
+    private getFilePath: () => string = () => '',
+    private getLineMap: () => LineMap | null = () => null,
+    private getRawMarkdown: () => string = () => '',
   ) {
     this.container = container;
     this.store = store;
@@ -112,6 +118,8 @@ export class CommentPanel {
     this.currentStartLine = line1;
     this.currentLlmMode = 'line';
     this.currentLlmCommentId = null;
+    this.currentLlmIndex = 0;
+    this.currentThreadRootId = null;
 
     this.panelEl = this.buildPanel({
       headerText: this.formatLineHeader(line1, line1),
@@ -127,6 +135,12 @@ export class CommentPanel {
     this.container.appendChild(this.panelEl);
     this.registerCloseHandlers();
     this.subscribeToLlmStore();
+
+    // Set thread context to the first root (if any) so subsequent saves become replies
+    const roots = this.llmStore.getForLine(line1);
+    if (roots.length > 0) {
+      this.currentThreadRootId = roots[0].id;
+    }
 
     if (this.editor) {
       const current = getCommentIndicatorState(this.editor.view);
@@ -149,6 +163,8 @@ export class CommentPanel {
     this.currentStartLine = entry.startLine;
     this.currentLlmMode = 'text';
     this.currentLlmCommentId = id;
+    this.currentLlmIndex = 0;
+    this.currentThreadRootId = null;
 
     const headerText =
       entry.endLine !== entry.startLine
@@ -191,6 +207,8 @@ export class CommentPanel {
     this.currentStartLine = startLine;
     this.currentLlmMode = 'newText';
     this.currentLlmCommentId = commentId;
+    this.currentLlmIndex = 0;
+    this.currentThreadRootId = null;
     this.pendingLlmCreation = {
       commentId,
       kind: 'text',
@@ -248,6 +266,7 @@ export class CommentPanel {
     this.currentStartLine = null;
     this.currentLlmMode = null;
     this.currentLlmCommentId = null;
+    this.currentThreadRootId = null;
     this.pendingLlmCreation = null;
     for (const cleanup of this.closeHandlers) cleanup();
     this.closeHandlers = [];
@@ -338,10 +357,14 @@ export class CommentPanel {
     body.className = 'comment-panel-body';
 
     if (opts.mode === 'llm-assist') {
-      // LLM mode: render entries from llmStore for the current line.
       if (this.llmStore && this.currentLine !== null) {
-        for (const entry of this.llmStore.getForLine(this.currentLine)) {
-          body.appendChild(this.renderLlmCommentEntry(entry));
+        const entries = this.llmStore.getForLine(this.currentLine);
+        if (entries.length > 1) {
+          body.appendChild(this.buildLlmNav(entries.length));
+        }
+        if (entries.length > 0) {
+          const idx = Math.min(this.currentLlmIndex, entries.length - 1);
+          body.appendChild(this.renderLlmThread(entries[idx]));
         }
       }
     } else {
@@ -355,6 +378,14 @@ export class CommentPanel {
 
     panel.appendChild(body);
 
+    // LLM copy section (between body and textarea)
+    if (opts.mode === 'llm-assist' && this.llmStore && this.currentLine !== null) {
+      const entries = this.llmStore.getForLine(this.currentLine);
+      if (entries.length > 0) {
+        panel.appendChild(this.buildCopySection());
+      }
+    }
+
     if (opts.mode === 'llm-assist') {
       // LLM mode always shows the Save input.
       const replySection = document.createElement('div');
@@ -362,7 +393,7 @@ export class CommentPanel {
 
       const textarea = document.createElement('textarea');
       textarea.className = 'comment-reply-input';
-      textarea.placeholder = 'Type a comment...';
+      textarea.placeholder = this.currentThreadRootId ? 'Type a reply...' : 'Type a comment...';
       replySection.appendChild(textarea);
 
       const saveBtn = document.createElement('button');
@@ -531,14 +562,30 @@ export class CommentPanel {
     } else if (this.currentLlmMode === 'line' && this.currentLine !== null) {
       const line1 = this.currentLine;
       const id = this.makeLlmId();
-      this.llmStore.add({
-        id,
-        kind: 'line',
-        body,
-        createdAt: Date.now(),
-        startLine: line1,
-        endLine: line1,
-      });
+
+      if (this.currentThreadRootId === null) {
+        // First comment in this panel session — create root
+        this.llmStore.add({
+          id,
+          kind: 'line',
+          body,
+          createdAt: Date.now(),
+          startLine: line1,
+          endLine: line1,
+        });
+        this.currentThreadRootId = id;
+      } else {
+        // Subsequent comment — create reply to the current thread
+        this.llmStore.add({
+          id,
+          kind: 'line',
+          body,
+          createdAt: Date.now(),
+          startLine: line1,
+          endLine: line1,
+          parentId: this.currentThreadRootId,
+        });
+      }
       textarea.value = '';
       // Keep the panel open — the list re-renders via subscribeToLlmStore.
     } else if (this.currentLlmMode === 'text' && this.currentLlmCommentId) {
@@ -562,7 +609,7 @@ export class CommentPanel {
     meta.className = 'comment-meta';
     const kind = document.createElement('span');
     kind.className = 'comment-pending-label';
-    kind.textContent = entry.kind === 'line' ? 'Line' : 'Text';
+    kind.textContent = entry.parentId ? 'Reply' : (entry.kind === 'line' ? 'Line' : 'Text');
     meta.appendChild(kind);
     el.appendChild(meta);
 
@@ -580,16 +627,6 @@ export class CommentPanel {
     editBtn.addEventListener('click', () => this.startInlineEdit(el, entry));
     actions.appendChild(editBtn);
 
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'llm-entry-copy';
-    copyBtn.textContent = 'Copy';
-    copyBtn.addEventListener('click', () => {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        navigator.clipboard.writeText(entry.body).catch(() => {});
-      }
-    });
-    actions.appendChild(copyBtn);
-
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'llm-entry-delete';
     deleteBtn.textContent = 'Delete';
@@ -605,6 +642,151 @@ export class CommentPanel {
     el.appendChild(actions);
 
     return el;
+  }
+
+  private renderLlmThread(root: LlmComment): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'llm-thread';
+
+    // Render root entry
+    container.appendChild(this.renderLlmCommentEntry(root));
+
+    // Render replies
+    if (this.llmStore) {
+      const replies = this.llmStore.getReplies(root.id);
+      for (const reply of replies) {
+        const replyEl = this.renderLlmCommentEntry(reply);
+        replyEl.classList.add('llm-reply-entry');
+        container.appendChild(replyEl);
+      }
+    }
+
+    return container;
+  }
+
+  private buildLlmNav(total: number): HTMLElement {
+    const nav = document.createElement('div');
+    nav.className = 'llm-nav';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'llm-nav-btn';
+    prevBtn.textContent = '\u2039'; // ‹
+    prevBtn.disabled = this.currentLlmIndex === 0;
+    prevBtn.addEventListener('click', () => {
+      if (this.currentLlmIndex > 0) {
+        this.currentLlmIndex--;
+        // Update thread context to the new current root
+        if (this.llmStore && this.currentLine !== null) {
+          const roots = this.llmStore.getForLine(this.currentLine);
+          if (roots[this.currentLlmIndex]) {
+            this.currentThreadRootId = roots[this.currentLlmIndex].id;
+          }
+        }
+        this.rerenderLlmBody();
+      }
+    });
+    nav.appendChild(prevBtn);
+
+    const label = document.createElement('span');
+    label.className = 'llm-nav-label';
+    label.textContent = `${this.currentLlmIndex + 1} of ${total}`;
+    nav.appendChild(label);
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'llm-nav-btn';
+    nextBtn.textContent = '\u203a'; // ›
+    nextBtn.disabled = this.currentLlmIndex >= total - 1;
+    nextBtn.addEventListener('click', () => {
+      if (this.currentLlmIndex < total - 1) {
+        this.currentLlmIndex++;
+        // Update thread context to the new current root
+        if (this.llmStore && this.currentLine !== null) {
+          const roots = this.llmStore.getForLine(this.currentLine);
+          if (roots[this.currentLlmIndex]) {
+            this.currentThreadRootId = roots[this.currentLlmIndex].id;
+          }
+        }
+        this.rerenderLlmBody();
+      }
+    });
+    nav.appendChild(nextBtn);
+
+    return nav;
+  }
+
+  private buildCopySection(): HTMLElement {
+    const section = document.createElement('div');
+    section.className = 'llm-copy-section';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'llm-copy-single';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', () => {
+      if (!this.llmStore || !this.editor || this.currentLine === null) return;
+      const payload = this.llmStore.toLinePayload(
+        this.currentLine,
+        this.editor,
+        this.getFilePath(),
+        this.getLineMap(),
+        this.getRawMarkdown(),
+      );
+      if (!payload) return;
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(payload).then(() => {
+          copyBtn.textContent = 'Copied \u2713';
+          setTimeout(() => { copyBtn.textContent = 'Copy'; }, 1500);
+        }).catch(() => {});
+      }
+    });
+    section.appendChild(copyBtn);
+
+    return section;
+  }
+
+  private rerenderLlmBody(): void {
+    if (!this.panelEl || !this.llmStore || this.currentLine === null) return;
+
+    const body = this.panelEl.querySelector('.comment-panel-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const entries = this.llmStore.getForLine(this.currentLine);
+    if (entries.length > 1) {
+      body.appendChild(this.buildLlmNav(entries.length));
+    }
+    if (entries.length > 0) {
+      const idx = Math.min(this.currentLlmIndex, entries.length - 1);
+      this.currentThreadRootId = entries[idx].id;
+      body.appendChild(this.renderLlmThread(entries[idx]));
+    } else {
+      this.currentThreadRootId = null;
+    }
+
+    // Update copy section
+    const existingCopy = this.panelEl.querySelector('.llm-copy-section');
+    if (entries.length > 0 && !existingCopy) {
+      // Insert copy section before the reply section
+      const replySection = this.panelEl.querySelector('.comment-panel-reply');
+      if (replySection) {
+        this.panelEl.insertBefore(this.buildCopySection(), replySection);
+      } else {
+        this.panelEl.appendChild(this.buildCopySection());
+      }
+    } else if (entries.length === 0 && existingCopy) {
+      existingCopy.remove();
+    }
+
+    // Update header count
+    const countEl = this.panelEl.querySelector('.comment-panel-count');
+    if (countEl) {
+      countEl.textContent = entries.length > 0 ? `${entries.length} comment${entries.length !== 1 ? 's' : ''}` : '';
+    }
+
+    // Update textarea placeholder based on thread context
+    const textarea = this.panelEl.querySelector('.comment-reply-input') as HTMLTextAreaElement | null;
+    if (textarea) {
+      textarea.placeholder = this.currentThreadRootId ? 'Type a reply...' : 'Type a comment...';
+    }
   }
 
   private startInlineEdit(rowEl: HTMLElement, entry: LlmComment): void {
@@ -649,17 +831,14 @@ export class CommentPanel {
     if (!this.llmStore) return;
     this.llmStoreUnsubscribe = this.llmStore.onChange(() => {
       if (!this.panelEl || !this.llmStore || this.currentLine === null) return;
-      const body = this.panelEl.querySelector('.comment-panel-body');
-      if (!body) return;
-      body.innerHTML = '';
-      for (const entry of this.llmStore.getForLine(this.currentLine)) {
-        body.appendChild(this.renderLlmCommentEntry(entry));
+      // Clamp index if comments were deleted
+      const entries = this.llmStore.getForLine(this.currentLine);
+      if (entries.length > 0) {
+        this.currentLlmIndex = Math.min(this.currentLlmIndex, entries.length - 1);
+      } else {
+        this.currentLlmIndex = 0;
       }
-      const countEl = this.panelEl.querySelector('.comment-panel-count');
-      const n = this.llmStore.getForLine(this.currentLine).length;
-      if (countEl) {
-        countEl.textContent = n > 0 ? `${n} comment${n !== 1 ? 's' : ''}` : '';
-      }
+      this.rerenderLlmBody();
     });
   }
 

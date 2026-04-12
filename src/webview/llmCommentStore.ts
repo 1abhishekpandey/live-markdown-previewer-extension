@@ -8,6 +8,7 @@ export interface LlmComment {
   createdAt: number;
   startLine: number; // 1-indexed
   endLine: number; // 1-indexed; startLine === endLine for kind: 'line'
+  parentId?: string;
 }
 
 export class LlmCommentStore {
@@ -20,7 +21,14 @@ export class LlmCommentStore {
   }
 
   remove(id: string): void {
-    this.comments = this.comments.filter(c => c.id !== id);
+    const target = this.comments.find(c => c.id === id);
+    if (target && !target.parentId) {
+      // Root — remove root + all its replies
+      this.comments = this.comments.filter(c => c.id !== id && c.parentId !== id);
+    } else {
+      // Reply or not found — remove just this one
+      this.comments = this.comments.filter(c => c.id !== id);
+    }
     this.notify();
   }
 
@@ -50,7 +58,7 @@ export class LlmCommentStore {
 
   getForLine(line1: number): LlmComment[] {
     const matches = this.comments.filter(
-      c => c.startLine <= line1 && line1 <= c.endLine,
+      c => c.startLine <= line1 && line1 <= c.endLine && !c.parentId,
     );
     return matches.sort((a, b) => {
       if (a.kind !== b.kind) {
@@ -58,6 +66,12 @@ export class LlmCommentStore {
       }
       return a.createdAt - b.createdAt;
     });
+  }
+
+  getReplies(rootId: string): LlmComment[] {
+    return this.comments
+      .filter(c => c.parentId === rootId)
+      .sort((a, b) => a.createdAt - b.createdAt);
   }
 
   onChange(listener: () => void): () => void {
@@ -77,29 +91,42 @@ export class LlmCommentStore {
       return '';
     }
 
-    const sorted = [...this.comments].sort((a, b) => {
-      if (a.startLine !== b.startLine) {
-        return a.startLine - b.startLine;
-      }
-      if (a.kind !== b.kind) {
-        return a.kind === 'line' ? -1 : 1;
-      }
-      return a.createdAt - b.createdAt;
+    // Get only root comments, sorted
+    const roots = this.comments
+      .filter(c => !c.parentId)
+      .sort((a, b) => {
+        if (a.startLine !== b.startLine) {
+          return a.startLine - b.startLine;
+        }
+        if (a.kind !== b.kind) {
+          return a.kind === 'line' ? -1 : 1;
+        }
+        return a.createdAt - b.createdAt;
+      });
+
+    const totalCount = roots.length;
+    const blocks = roots.map((root, index) => {
+      const replies = this.getReplies(root.id);
+      return formatThreadBlock([root, ...replies], index, totalCount, editor, lineMap ?? null, rawMarkdown);
     });
 
-    const totalCount = sorted.length;
-    const blocks = sorted.map((comment, index) => {
-      const lineHeader = formatLineHeader(comment.startLine, comment.endLine);
-      const quoted = extractQuotedText(editor, comment, lineMap ?? null, rawMarkdown);
-      const commentLabel = totalCount === 1 ? 'Comment' : `Comment ${index + 1}`;
-      const feedbackLabel = totalCount === 1 ? 'Feedback:' : `Feedback-${index + 1}:`;
-      return (
-        `${commentLabel} — ${lineHeader}:\n` +
-        `Selected text:\n` +
-        `"""\n${quoted}\n"""\n\n` +
-        `${feedbackLabel}\n` +
-        `"""\n${comment.body}\n"""`
-      );
+    return `File: \`${filePath}\`\n\n` + blocks.join('\n\n---\n\n');
+  }
+
+  toLinePayload(
+    line1: number,
+    editor: Editor,
+    filePath: string,
+    lineMap?: LineMap | null,
+    rawMarkdown?: string,
+  ): string {
+    const roots = this.getForLine(line1);
+    if (roots.length === 0) return '';
+
+    const total = roots.length;
+    const blocks = roots.map((root, index) => {
+      const replies = this.getReplies(root.id);
+      return formatThreadBlock([root, ...replies], index, total, editor, lineMap ?? null, rawMarkdown);
     });
 
     return `File: \`${filePath}\`\n\n` + blocks.join('\n\n---\n\n');
@@ -110,6 +137,32 @@ export class LlmCommentStore {
       listener();
     }
   }
+}
+
+function formatThreadBlock(
+  thread: LlmComment[],
+  index: number,
+  total: number,
+  editor: Editor,
+  lineMap: LineMap | null,
+  rawMarkdown?: string,
+): string {
+  const root = thread[0];
+  const lineHeader = formatLineHeader(root.startLine, root.endLine);
+  const quoted = extractQuotedText(editor, root, lineMap, rawMarkdown);
+  const commentLabel = total === 1 ? 'Comment' : `Comment ${index + 1}`;
+  const feedbackLabel = total === 1 ? 'Feedback:' : `Feedback-${index + 1}:`;
+
+  // Combine all bodies in the thread (root + replies)
+  const combinedBody = thread.map(c => c.body).join('\n\n');
+
+  return (
+    `${commentLabel} — ${lineHeader}:\n` +
+    `Selected text:\n` +
+    `"""\n${quoted}\n"""\n\n` +
+    `${feedbackLabel}\n` +
+    `"""\n${combinedBody}\n"""`
+  );
 }
 
 function formatLineHeader(startLine: number, endLine: number): string {
