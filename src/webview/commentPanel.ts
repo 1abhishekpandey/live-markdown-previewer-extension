@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core';
 import type { CommentThread, CommentData, PendingComment } from '../sync/commentTypes';
 import type { PendingCommentStore } from './pendingCommentStore';
 import type { LlmComment, LlmCommentStore } from './llmCommentStore';
+import { updateCommentIndicatorState, getCommentIndicatorState } from './commentIndicator';
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -127,6 +128,11 @@ export class CommentPanel {
     this.registerCloseHandlers();
     this.subscribeToLlmStore();
 
+    if (this.editor) {
+      const current = getCommentIndicatorState(this.editor.view);
+      updateCommentIndicatorState(this.editor.view, { ...current, activeLlmLine: line1 });
+    }
+
     if (this.llmStore.getForLine(line1).length === 0) {
       const ta = this.panelEl.querySelector('.comment-reply-input') as HTMLTextAreaElement | null;
       ta?.focus();
@@ -218,6 +224,12 @@ export class CommentPanel {
   }
 
   close(): void {
+    // Clear the active-line highlight when closing a line panel.
+    if (this.currentLlmMode === 'line' && this.editor) {
+      const current = getCommentIndicatorState(this.editor.view);
+      updateCommentIndicatorState(this.editor.view, { ...current, activeLlmLine: null });
+    }
+
     // Unwind a not-yet-saved new-text comment's highlight mark
     if (
       this.currentLlmMode === 'newText' &&

@@ -1085,6 +1085,11 @@ html, body {
   display: none;
 }
 
+/* Line currently being commented (panel is open). */
+.llm-line-active {
+  background: var(--vscode-editor-selectionHighlightBackground, rgba(0, 120, 215, 0.15));
+}
+
 /* Commented block node: shows a count badge instead of the hover +. */
 .llm-line-commented {
   background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 200, 0, 0.15));

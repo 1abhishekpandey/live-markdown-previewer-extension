@@ -16,6 +16,7 @@ export interface CommentIndicatorState {
   lineMap: LineMap | null;
   llmAssistActive?: boolean;
   llmComments?: LlmComment[];
+  activeLlmLine?: number | null;
 }
 
 const PLUGIN_KEY = new PluginKey<CommentIndicatorState>('commentIndicator');
@@ -28,6 +29,7 @@ const emptyState: CommentIndicatorState = {
   lineMap: null,
   llmAssistActive: false,
   llmComments: [],
+  activeLlmLine: null,
 };
 
 export function createCommentIndicatorPlugin(): Plugin<CommentIndicatorState> {
@@ -79,7 +81,7 @@ function buildDecorations(doc: PmNode, state: CommentIndicatorState): Decoration
 
   // LLM-Assist branch — mutually exclusive with review mode.
   if (llmAssistActive && !reviewMode) {
-    return buildLlmDecorations(doc, lineMap, llmComments);
+    return buildLlmDecorations(doc, lineMap, llmComments, state.activeLlmLine);
   }
 
   // Review-mode branch.
@@ -201,6 +203,7 @@ function buildLlmDecorations(
   doc: PmNode,
   lineMap: LineMap,
   llmComments: LlmComment[],
+  activeLlmLine: number | null | undefined,
 ): DecorationSet {
   const decorations: Decoration[] = [];
 
@@ -218,9 +221,10 @@ function buildLlmDecorations(
     ).length;
 
     if (count === 0) {
+      const isActive = line1 === activeLlmLine;
       decorations.push(
         Decoration.node(pos, pos + node.nodeSize, {
-          class: 'llm-line-commentable',
+          class: isActive ? 'llm-line-commentable llm-line-active' : 'llm-line-commentable',
           'data-llm-line': String(line1),
         }),
       );
