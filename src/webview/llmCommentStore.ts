@@ -8,6 +8,7 @@ export interface LlmComment {
   createdAt: number;
   startLine: number; // 1-indexed
   endLine: number; // 1-indexed; startLine === endLine for kind: 'line'
+  selectedText?: string;
   parentId?: string;
 }
 
@@ -198,7 +199,8 @@ function extractQuotedText(
   if (comment.kind === 'text') {
     const markText = extractMarkText(editor, comment.id);
     if (markText) return markText;
-    // Mark not applied (e.g. code block) — fall through to line extraction
+    if (comment.selectedText) return comment.selectedText;
+    // Mark not applied and no stored text — fall through to line extraction
   }
   // Line comments: extract full line(s) from raw markdown when available.
   if (rawMarkdown) {

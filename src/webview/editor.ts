@@ -9,6 +9,7 @@ import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import Code from '@tiptap/extension-code';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { common, createLowlight } from 'lowlight';
 import { Markdown } from 'tiptap-markdown';
@@ -94,6 +95,10 @@ export function createEditor(element: HTMLElement): Editor {
       StarterKit.configure({
         history: { newGroupDelay: 500 },
         codeBlock: false,
+        code: false,
+      }),
+      Code.extend({
+        excludes: 'bold italic strike link',
       }),
       Link.configure({
         openOnClick: false,

@@ -18,6 +18,7 @@ interface PendingLlmCreation {
   startLine: number;
   endLine: number;
   createdAt: number;
+  selectedText?: string;
 }
 
 export class CommentPanel {
@@ -214,6 +215,7 @@ export class CommentPanel {
     anchorEl: HTMLElement,
     startLine: number,
     endLine: number,
+    selectedText?: string,
   ): void {
     if (!this.llmStore) return;
     this.close();
@@ -229,6 +231,7 @@ export class CommentPanel {
       startLine,
       endLine,
       createdAt: Date.now(),
+      selectedText,
     };
 
     const headerText =
@@ -572,6 +575,7 @@ export class CommentPanel {
         createdAt: this.pendingLlmCreation.createdAt,
         startLine: this.pendingLlmCreation.startLine,
         endLine: this.pendingLlmCreation.endLine,
+        selectedText: this.pendingLlmCreation.selectedText,
       });
       this.pendingLlmCreation = null;
 

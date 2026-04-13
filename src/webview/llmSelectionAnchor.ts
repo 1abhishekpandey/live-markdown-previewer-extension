@@ -134,6 +134,11 @@ export class LlmSelectionAnchor {
     const { from, to } = view.state.selection;
     if (from === to) return;
 
+    const doc = view.state.doc;
+    const selectedText = typeof doc.textBetween === 'function'
+      ? doc.textBetween(from, to, ' ')
+      : '';
+
     // Resolve the top-level block ancestors for `from` and `to - 1` (so the end
     // position is inside the ending block, not past it).
     const $from = view.state.doc.resolve(from);
@@ -176,7 +181,7 @@ export class LlmSelectionAnchor {
           : (view.dom as HTMLElement);
     }
 
-    this.panel.openLlmNewText(commentId, anchorEl, startLine, endLineInclusive);
+    this.panel.openLlmNewText(commentId, anchorEl, startLine, endLineInclusive, selectedText);
 
     this.hide();
   }
