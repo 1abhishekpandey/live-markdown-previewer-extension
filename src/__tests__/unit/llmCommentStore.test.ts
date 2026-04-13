@@ -780,4 +780,70 @@ describe('LlmCommentStore — threading', () => {
     // Line comment uses full line from rawMarkdown
     expect(out).toContain('"""\nThe quick brown fox\n"""');
   });
+
+  it('T13: text comment with no mark text but with selectedText uses selectedText in payload', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'txt-code',
+      kind: 'text',
+      body: 'fix naming',
+      createdAt: 100,
+      startLine: 3,
+      endLine: 3,
+      selectedText: 'FLAG_STOPPED',
+    });
+
+    const editor = makeMockEditor({
+      lineText: { 3: 'package into the FLAG_STOPPED state' },
+      // No markText for 'txt-code'
+    });
+
+    const out = store.toPayload(editor, 'f.md');
+    expect(out).toContain('"""\nFLAG_STOPPED\n"""');
+    expect(out).not.toContain('package into');
+  });
+
+  it('T14: text comment with both mark text and selectedText prefers mark text', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'txt-both',
+      kind: 'text',
+      body: 'note',
+      createdAt: 100,
+      startLine: 3,
+      endLine: 3,
+      selectedText: 'stored selection',
+    });
+
+    const editor = makeMockEditor({
+      markText: { 'txt-both': 'mark text wins' },
+      lineText: { 3: 'full line' },
+    });
+
+    const out = store.toPayload(editor, 'f.md');
+    expect(out).toContain('"""\nmark text wins\n"""');
+    expect(out).not.toContain('stored selection');
+  });
+
+  it('T15: text comment with neither mark text nor selectedText falls through to line extraction', () => {
+    const store = new LlmCommentStore();
+    store.add({
+      id: 'txt-none',
+      kind: 'text',
+      body: 'note',
+      createdAt: 100,
+      startLine: 3,
+      endLine: 3,
+      // no selectedText
+    });
+
+    const editor = makeMockEditor({
+      // No markText for 'txt-none'
+      lineText: { 3: 'full line text' },
+    });
+
+    const rawMarkdown = 'line one\nline two\nfull line text\nline four';
+    const out = store.toPayload(editor, 'f.md', null, rawMarkdown);
+    expect(out).toContain('"""\nfull line text\n"""');
+  });
 });

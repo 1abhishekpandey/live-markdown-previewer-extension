@@ -15,6 +15,7 @@ interface MockEditorOpts {
   from?: number;
   to?: number;
   coordsAtPos?: (pos: number) => { top: number; left: number; right: number; bottom: number };
+  textBetween?: string;
 }
 
 interface MockEditor {
@@ -23,6 +24,7 @@ interface MockEditor {
       selection: { from: number; to: number };
       doc: {
         resolve: (pos: number) => { before: (depth: number) => number };
+        textBetween: (from: number, to: number, separator?: string) => string;
       };
     };
     coordsAtPos: (pos: number) => { top: number; left: number; right: number; bottom: number };
@@ -51,6 +53,7 @@ function makeMockEditor(editorDom: HTMLElement, opts: MockEditorOpts = {}): Mock
           resolve: (_pos: number) => ({
             before: (_depth: number) => 0,
           }),
+          textBetween: () => opts.textBetween ?? '',
         },
       },
       coordsAtPos,
@@ -300,6 +303,34 @@ describe('LlmSelectionAnchor', () => {
     const idFromMark = editor.__spies.setLlmComment.mock.calls[0][0].commentId;
     const idFromPanel = panel.openLlmNewText.mock.calls[0][0];
     expect(idFromPanel).toBe(idFromMark);
+
+    anchor.destroy();
+  });
+
+  it('A7: click captures selectedText from doc.textBetween and passes it to panel.openLlmNewText', () => {
+    const editorEl = makeEditorElement();
+    const editor = makeMockEditor(editorEl, { from: 1, to: 5, textBetween: 'FLAG_STOPPED' });
+    const store = new LlmCommentStore();
+    const panel = makeMockPanel();
+    const anchor = new LlmSelectionAnchor(
+      editor as any,
+      store,
+      panel as any,
+      editorEl,
+      () => makeLineMap() as any,
+    );
+
+    anchor.setActive(true);
+    selectAllInside(editorEl);
+    fireSelectionChange();
+
+    const btn = document.querySelector('.llm-selection-plus') as HTMLButtonElement;
+    btn.click();
+
+    expect(panel.openLlmNewText).toHaveBeenCalledTimes(1);
+    const args = panel.openLlmNewText.mock.calls[0];
+    // 5th argument (index 4) is selectedText
+    expect(args[4]).toBe('FLAG_STOPPED');
 
     anchor.destroy();
   });

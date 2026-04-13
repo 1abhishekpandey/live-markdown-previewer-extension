@@ -616,4 +616,20 @@ describe('CommentPanel (LLM-Assist mode)', () => {
     expect(copied).toContain('thread A reply');
     expect(copied).not.toContain('thread B');
   });
+
+  // T-P10: openLlmNewText with selectedText stores it on the comment after save
+  it('T-P10: selectedText passed to openLlmNewText is stored on the comment after save', () => {
+    panel.openLlmNewText('sel-id', anchor, 3, 3, 'FLAG_STOPPED');
+
+    const textarea = container.querySelector('.comment-reply-input') as HTMLTextAreaElement;
+    textarea.value = 'fix this';
+    const btn = container.querySelector('.comment-reply-queue') as HTMLButtonElement;
+    btn.click();
+
+    const comment = llmStore.get('sel-id');
+    expect(comment).toBeDefined();
+    expect(comment!.selectedText).toBe('FLAG_STOPPED');
+    expect(comment!.kind).toBe('text');
+    expect(comment!.body).toBe('fix this');
+  });
 });
