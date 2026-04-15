@@ -1,7 +1,8 @@
 import type { Editor } from '@tiptap/core';
+import type { ResolvedPos } from '@tiptap/pm/model';
 import type { LlmCommentStore } from './llmCommentStore';
 import type { CommentPanel } from './commentPanel';
-import type { LineMap } from './lineMap';
+import type { LineMap, LineRange } from './lineMap';
 
 /**
  * Shows a floating `+` button above a live text selection inside the editor.
@@ -139,27 +140,31 @@ export class LlmSelectionAnchor {
       ? doc.textBetween(from, to, ' ')
       : '';
 
-    // Resolve the top-level block ancestors for `from` and `to - 1` (so the end
+    // Resolve the block ancestors for `from` and `to - 1` (so the end
     // position is inside the ending block, not past it).
     const $from = view.state.doc.resolve(from);
     const $to = view.state.doc.resolve(Math.max(to - 1, from));
 
-    const startBlockPos = $from.before(1);
-    const endBlockPos = $to.before(1);
-
     const lineMap = this.getLineMap();
     if (!lineMap) return;
 
-    const startRange = lineMap.posToLineRange.get(startBlockPos);
-    const endRange = lineMap.posToLineRange.get(endBlockPos);
-    if (!startRange || !endRange) return;
+    // Walk from the deepest ancestor down to depth 1, preferring the most-specific
+    // commentable block so nested list comments anchor to the inner listItem, not
+    // the outer list.
+    const startResult = findBlockPosInLineMap($from, lineMap);
+    const endResult = findBlockPosInLineMap($to, lineMap);
+
+    // Derive line numbers from whatever resolved (fallback to 1/1 so the user
+    // always gets feedback — line numbers are metadata; the mark is what matters).
+    const resolvedStartRange = startResult?.range ?? endResult?.range;
+    const resolvedEndRange = endResult?.range ?? startResult?.range;
 
     // Convert 0-indexed startLine to 1-indexed.
-    const startLine = startRange.startLine + 1;
+    const startLine = resolvedStartRange ? resolvedStartRange.startLine + 1 : 1;
     // `endLine` in posToLineRange is EXCLUSIVE. Treating the exclusive end as
     // the inclusive 1-indexed last line is correct due to the off-by-one.
     // Example: {startLine:0, endLine:1} → 1-indexed lines 1..1 → last = 1 = endLine.
-    const endLineInclusive = endRange.endLine;
+    const endLineInclusive = resolvedEndRange ? resolvedEndRange.endLine : 1;
 
     const commentId = this.makeId();
 
@@ -172,9 +177,11 @@ export class LlmSelectionAnchor {
     ) as HTMLElement | null;
 
     if (!anchorEl) {
-      // Mark not applied (e.g. code block). Use the block element at the
-      // selection start as anchor so the panel appears next to it.
-      const domAtStart = view.nodeDOM($from.before(1));
+      // Mark not applied (e.g. code block). Use the deepest resolved block
+      // element at the selection start as anchor so the panel appears next to it.
+      const domAtStart = startResult
+        ? view.nodeDOM(startResult.pos)
+        : view.nodeDOM($from.before(1));
       anchorEl =
         domAtStart instanceof HTMLElement
           ? domAtStart
@@ -191,4 +198,22 @@ export class LlmSelectionAnchor {
       ? crypto.randomUUID()
       : `llm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
+}
+
+/**
+ * Walk from the deepest wrapping block ancestor down to depth 1, returning the
+ * first position that exists in the lineMap. This prefers the most-specific
+ * commentable block so nested list comments anchor to the inner listItem, not
+ * the outer list.
+ */
+function findBlockPosInLineMap(
+  $pos: ResolvedPos,
+  lineMap: LineMap,
+): { pos: number; range: LineRange } | null {
+  for (let d = $pos.depth; d >= 1; d--) {
+    const pos = $pos.before(d);
+    const range = lineMap.posToLineRange.get(pos);
+    if (range) return { pos, range };
+  }
+  return null;
 }
