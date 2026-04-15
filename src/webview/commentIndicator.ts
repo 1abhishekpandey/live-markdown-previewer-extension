@@ -215,24 +215,35 @@ function buildLlmDecorations(
     // Convert 0-indexed to 1-indexed at the boundary.
     const line1 = range.startLine + 1;
 
-    // Count root comments (not replies) whose range covers this line.
-    const count = llmComments.filter(
-      (c) => c.startLine <= line1 && line1 <= c.endLine && !c.parentId,
+    const iconCount = llmComments.filter(
+      (c) => line1 === c.endLine && !c.parentId,
     ).length;
 
-    if (count === 0) {
+    const isInRange = llmComments.some(
+      (c) => !c.parentId && line1 >= c.startLine && line1 <= c.endLine,
+    );
+
+    if (isInRange) {
+      if (iconCount > 0) {
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, {
+            class: 'llm-line-commented',
+            'data-llm-count': String(iconCount),
+            'data-llm-line': String(line1),
+          }),
+        );
+      } else {
+        decorations.push(
+          Decoration.node(pos, pos + node.nodeSize, {
+            class: 'llm-line-commented',
+          }),
+        );
+      }
+    } else {
       const isActive = line1 === activeLlmLine;
       decorations.push(
         Decoration.node(pos, pos + node.nodeSize, {
           class: isActive ? 'llm-line-commentable llm-line-active' : 'llm-line-commentable',
-          'data-llm-line': String(line1),
-        }),
-      );
-    } else {
-      decorations.push(
-        Decoration.node(pos, pos + node.nodeSize, {
-          class: 'llm-line-commented',
-          'data-llm-count': String(count),
           'data-llm-line': String(line1),
         }),
       );

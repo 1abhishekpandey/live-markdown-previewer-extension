@@ -136,9 +136,17 @@ export class CommentPanel {
     this.currentLlmIndex = 0;
     this.currentThreadRootId = null;
 
+    const existingComments = this.llmStore.getForLine(line1);
+    const headerStart = existingComments.length > 0
+      ? Math.min(...existingComments.map(c => c.startLine))
+      : line1;
+    const headerEnd = existingComments.length > 0
+      ? Math.max(...existingComments.map(c => c.endLine))
+      : effectiveEnd;
+
     this.panelEl = this.buildPanel({
-      headerText: this.formatLineHeader(effectiveEnd, line1),
-      commentCount: this.llmStore.getForLine(line1).length,
+      headerText: this.formatLineHeader(headerEnd, headerStart),
+      commentCount: existingComments.length,
       comments: [],
       pendingComments: [],
       isNewComment: false,
@@ -152,9 +160,8 @@ export class CommentPanel {
     this.subscribeToLlmStore();
 
     // Set thread context to the first root (if any) so subsequent saves become replies
-    const roots = this.llmStore.getForLine(line1);
-    if (roots.length > 0) {
-      this.currentThreadRootId = roots[0].id;
+    if (existingComments.length > 0) {
+      this.currentThreadRootId = existingComments[0].id;
     }
 
     if (this.editor) {
@@ -162,7 +169,7 @@ export class CommentPanel {
       updateCommentIndicatorState(this.editor.view, { ...current, activeLlmLine: line1 });
     }
 
-    if (this.llmStore.getForLine(line1).length === 0) {
+    if (existingComments.length === 0) {
       const ta = this.panelEl.querySelector('.comment-reply-input') as HTMLTextAreaElement | null;
       ta?.focus();
     }
