@@ -194,7 +194,18 @@ export class DocumentSyncManager {
 
     // Replacement or deletion
     const origStart = this.mapToOriginal(mapping, changeBaseStart, baseLines.length, origLines.length);
-    const origEnd = this.mapToOriginal(mapping, changeBaseEnd, baseLines.length, origLines.length);
+    let origEnd = this.mapToOriginal(mapping, changeBaseEnd, baseLines.length, origLines.length);
+
+    if (oldContent.length === 1) {
+      const mergedBaseLine = oldContent[0];
+      while (
+        origEnd + 1 < origLines.length &&
+        origLines[origEnd + 1].trim() !== '' &&
+        mergedBaseLine.includes(origLines[origEnd + 1])
+      ) {
+        origEnd++;
+      }
+    }
 
     if (origStart < 0 || origEnd < 0 || origEnd < origStart || origStart > origLines.length || origEnd >= origLines.length) {
       return null;

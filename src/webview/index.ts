@@ -1,5 +1,6 @@
 import './styles.css';
 import { createEditor } from './editor';
+import { unescapeInlineCode } from './markdownPostProcess';
 import { SyncClient } from './syncClient';
 import { setCopyMode } from './copyToolbar';
 import { PendingCommentStore } from './pendingCommentStore';
@@ -75,7 +76,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 
     // Build line map for position lookups
     const md = (editor.storage as any).markdown?.parser?.md;
-    const markdown = editor.storage.markdown.getMarkdown();
+    const markdown = unescapeInlineCode(editor.storage.markdown.getMarkdown());
     const lineMap = md ? buildLineMap(editor.state.doc, markdown, md) : null;
 
     // Update indicator plugin state
@@ -131,7 +132,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (isExternallyUpdating) {
     // Snapshot the serialised output AFTER setContent so the update handler
     // can detect real content changes vs mark-only changes.
-    lastKnownSerialized = editor.storage.markdown.getMarkdown();
+    lastKnownSerialized = unescapeInlineCode(editor.storage.markdown.getMarkdown());
     isExternallyUpdating = false;
   }
 });
@@ -470,7 +471,7 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
 // output — only overwrite rawMarkdown when text content actually changed.
 editor.on('update', () => {
   if (!isExternallyUpdating) {
-    const serialized = editor.storage.markdown.getMarkdown();
+    const serialized = unescapeInlineCode(editor.storage.markdown.getMarkdown());
     if (serialized !== lastKnownSerialized) {
       rawMarkdown = serialized;
       lastKnownSerialized = serialized;
