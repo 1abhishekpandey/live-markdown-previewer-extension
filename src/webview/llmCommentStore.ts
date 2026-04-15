@@ -194,12 +194,13 @@ function extractQuotedText(
   lineMap: LineMap | null,
   rawMarkdown?: string,
 ): string {
-  // Text comments: extract only the marked (selected) text from the editor,
-  // not the full line(s). The mark covers exactly what the user highlighted.
+  // Text comments: prefer the stored selectedText (serialised markdown, preserving
+  // links and paragraph breaks). Fall back to extractMarkText only when there is no
+  // stored text (e.g. comments created before this field existed).
   if (comment.kind === 'text') {
+    if (comment.selectedText) return comment.selectedText;
     const markText = extractMarkText(editor, comment.id);
     if (markText) return markText;
-    if (comment.selectedText) return comment.selectedText;
     // Mark not applied and no stored text — fall through to line extraction
   }
   // Line comments: extract full line(s) from raw markdown when available.

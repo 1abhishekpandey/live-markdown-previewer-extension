@@ -136,9 +136,17 @@ export class LlmSelectionAnchor {
     if (from === to) return;
 
     const doc = view.state.doc;
-    const selectedText = typeof doc.textBetween === 'function'
-      ? doc.textBetween(from, to, ' ')
-      : '';
+    let selectedText = '';
+    try {
+      const slice = doc.slice(from, to);
+      const wrappedDoc = this.editor.schema.topNodeType.create(null, slice.content);
+      const raw: string = this.editor.storage.markdown.serializer.serialize(wrappedDoc);
+      selectedText = raw.endsWith('\n') ? raw.slice(0, -1) : raw;
+    } catch {
+      selectedText = typeof doc.textBetween === 'function'
+        ? doc.textBetween(from, to, '\n\n')
+        : '';
+    }
 
     // Resolve the block ancestors for `from` and `to - 1` (so the end
     // position is inside the ending block, not past it).
