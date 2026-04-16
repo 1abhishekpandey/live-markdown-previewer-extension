@@ -250,7 +250,7 @@ export class DocumentSyncManager {
               let shouldUpdate = false;
               if (bestB === -1) {
                 shouldUpdate = true;
-              } else if (isContent && !bestIsContent) {
+              } else if (isContent && !bestIsContent && rawCost <= bestCost + 4) {
                 shouldUpdate = true;
               } else if (isContent === bestIsContent && rawCost < bestCost) {
                 shouldUpdate = true;
