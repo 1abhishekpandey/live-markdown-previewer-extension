@@ -349,3 +349,67 @@ Errors are displayed as red text below the toolbar. Common errors:
 - Comment editing and deletion must be done on GitHub (refresh to sync)
 - Single PR per branch (most recent if multiple exist)
 - GitHub only — no GitLab, Bitbucket, or Azure DevOps support
+
+---
+
+# LLM Assist Mode
+
+An opt-in annotation mode for preparing structured feedback to paste into an LLM chat. Rather than manually copying text, explaining where it lives in the document, and writing context around it, LLM Assist lets you annotate directly in the editor and produces a payload that includes file path, exact source lines, and your comments.
+
+## Enabling LLM Assist
+
+Click **LLM-Assist: Off** in the toolbar or open the Command Palette and run **Toggle LLM-Assist**. The button label changes to **LLM-Assist: On** while active.
+
+LLM Assist and PR Review mode are mutually exclusive — activating one while the other is active shows a transient error banner.
+
+## Adding Comments
+
+Two entry points for adding comments:
+
+### Block Comments
+
+Every commentable block (paragraph, heading, list item, task item, code block, table) shows a "+" button in the gutter on hover. Clicking it opens the comment panel anchored to that block's line in the source file.
+
+### Selection Comments
+
+Select any text range to reveal a floating "+ Comment" button above the selection. Clicking it:
+
+1. Applies an `llmComment` inline mark to the selected text (marks can overlap and stack)
+2. Opens the comment panel pre-linked to the exact text range
+
+## Comment Threads
+
+Each comment supports inline reply threads. The panel shows all replies in order. Navigation buttons (prev/next) move between threads, not individual comments within a thread.
+
+## Copy Payload
+
+Click **Copy** on a thread to copy a structured payload to the clipboard. The format:
+
+```
+File: `src/example.ts`
+
+> 12: const result = processData(input);
+> 13: return result.filter(isValid);
+
+Comment-1 — Line 12:
+Feedback: Consider adding error handling for the processData call.
+
+Comment-2 — Line 13:
+Feedback: The isValid predicate should handle null values.
+```
+
+**Copy All** copies every thread in the document, separated by blank lines.
+
+## Toggling Off
+
+Clicking the toggle button while LLM Assist is active:
+
+- Clears the entire comment store
+- Strips all `llmComment` inline marks from the document in a single transaction
+- Returns the editor to normal editing mode
+
+## Limitations
+
+- Comments are ephemeral — they are not saved to the markdown file and are lost when toggling off or closing the editor
+- Mutually exclusive with PR Review mode
+- No persistence across sessions — re-enabling LLM Assist starts with a clean slate

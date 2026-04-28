@@ -58,6 +58,17 @@ Review GitHub pull request comments directly in the editor — no need to switch
 - **One comment per line** — multiple separate comments on the same line are not supported (may be added in future)
 - **Requires `gh` CLI** — all GitHub communication goes through the [GitHub CLI](https://cli.github.com) (must be installed and authenticated)
 
+# LLM Assist Mode
+
+Annotate any block or text selection with structured comments, then copy a machine-readable payload for pasting into an LLM chat.
+
+- **Toggle** — click "LLM-Assist: Off" in the toolbar or use the Command Palette (`Toggle LLM-Assist`). Mutually exclusive with PR Review mode.
+- **Block comments** — hover over any paragraph, heading, list item, task item, code block, or table to reveal a "+" gutter button. Click to open the comment panel anchored to that block.
+- **Selection comments** — select any text range to reveal a floating "+ Comment" button. Click to apply an inline mark and open the comment panel linked to the exact selection.
+- **Threaded replies** — each comment supports inline replies. Navigate between threads with prev/next buttons.
+- **Copy** — click "Copy" on a thread to copy a structured payload containing the workspace-relative file path, quoted source lines, and labelled comments. "Copy All" copies every thread.
+- **Ephemeral** — comments are not saved to the markdown file. Toggling off clears all comments and inline marks.
+
 # Read-Only Support
 
 Git diff views and other non-writable documents display a "Read-only" banner with editing and shortcuts disabled.

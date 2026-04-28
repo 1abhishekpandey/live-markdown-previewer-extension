@@ -25,6 +25,7 @@ When you open a `.md` file for the first time, click the **"Toggle raw markdown"
 - **Copy mode toggle** — copy as raw Markdown or rendered rich text
 - **GFM alert callouts** — `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, and `[!CAUTION]` blocks with distinct colours and icons
 - **PR review comments** — view, reply, and create GitHub PR comments inline with batch draft submission (requires [`gh` CLI](https://cli.github.com))
+- **LLM Assist mode** — annotate blocks or text selections with structured comments, then copy a machine-readable payload (file path, quoted source lines, and feedback) for pasting into an LLM chat
 - **Real-time sync** — edits from other extensions or external tools appear instantly
 
 ## How it Works
