@@ -34,7 +34,7 @@ export function buildLineMap(
   const tokens = md.parse(markdown, {});
   const posToLineRange = new Map<number, LineRange>();
 
-  const walker = new TokenWalker(tokens, posToLineRange);
+  const walker = new TokenWalker(tokens, posToLineRange, markdown);
   walker.walkDoc(doc);
 
   const lineToPos = buildReverseMap(posToLineRange);
@@ -78,16 +78,43 @@ class TokenWalker {
   private tokens: MdToken[];
   private idx = 0;
   private result: Map<number, LineRange>;
+  private markdown: string;
 
-  constructor(tokens: MdToken[], result: Map<number, LineRange>) {
+  constructor(tokens: MdToken[], result: Map<number, LineRange>, markdown: string) {
     this.tokens = tokens;
     this.result = result;
+    this.markdown = markdown;
   }
 
   walkDoc(doc: PmNode): void {
+    const children: Array<{ node: PmNode; offset: number }> = [];
     doc.forEach((child, offset) => {
-      this.walkNode(child, offset);
+      children.push({ node: child, offset });
     });
+
+    let childIdx = 0;
+    while (childIdx < children.length) {
+      const token = this.nextBlockToken();
+      if (!token) break;
+
+      if (token.type === 'html_block' && token.nesting === 0) {
+        this.idx++; // consume html_block
+        if (token.map) {
+          const range: LineRange = { startLine: token.map[0], endLine: token.map[1] };
+          const html = getSourceLines(this.markdown, range.startLine, range.endLine);
+          const count = countHtmlBlockNodes(html);
+          for (let j = 0; j < count && childIdx < children.length; j++) {
+            this.result.set(children[childIdx].offset, range);
+            childIdx++;
+          }
+        }
+        // If count was 0 (e.g. HTML comment dropped by TipTap), childIdx is NOT
+        // advanced — the next child aligns with the next token.
+      } else {
+        this.walkNode(children[childIdx].node, children[childIdx].offset);
+        childIdx++;
+      }
+    }
   }
 
   private walkNode(node: PmNode, pos: number): void {
@@ -160,4 +187,38 @@ class TokenWalker {
       this.idx++;
     }
   }
+}
+
+/**
+ * Extract raw source lines from the markdown string.
+ * startLine/endLine are 0-indexed, endLine is exclusive (matching markdown-it token.map).
+ */
+function getSourceLines(markdown: string, startLine: number, endLine: number): string {
+  const lines = markdown.split('\n');
+  return lines.slice(startLine, endLine).join('\n');
+}
+
+/**
+ * Count how many top-level ProseMirror block nodes an html_block token
+ * will produce when TipTap parses the raw HTML via ProseMirror's DOMParser.
+ *
+ * We parse the HTML into a temporary <div> and count top-level Element and
+ * non-whitespace Text child nodes — the same children ProseMirror's DOMParser
+ * would create block nodes from.
+ */
+function countHtmlBlockNodes(html: string): number {
+  if (typeof document === 'undefined') return 1;
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  let count = 0;
+  for (let i = 0; i < container.childNodes.length; i++) {
+    const child = container.childNodes[i];
+    if (child.nodeType === Node.ELEMENT_NODE) {
+      count++;
+    } else if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+      count++; // bare text outside any element → ProseMirror wraps in paragraph
+    }
+    // Comment nodes (nodeType 8) are dropped by TipTap → don't count
+  }
+  return count;
 }

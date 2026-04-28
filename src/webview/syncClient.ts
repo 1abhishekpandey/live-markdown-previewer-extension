@@ -1,5 +1,6 @@
 import { Editor } from '@tiptap/core';
 import { WebviewToExtensionMessage, ExtensionToWebviewMessage } from '../sync/syncProtocol';
+import { unescapeInlineCode } from './markdownPostProcess';
 
 interface VsCodeApi {
   postMessage(message: WebviewToExtensionMessage): void;
@@ -190,7 +191,7 @@ export class SyncClient {
         this.isInitialized = true;
         // Send baseline serialisation so extension can three-way merge user edits
         {
-          const baseline = this.editor.storage.markdown.getMarkdown();
+          const baseline = unescapeInlineCode(this.editor.storage.markdown.getMarkdown());
           this.vscode.postMessage({ type: 'baseline', markdown: baseline });
         }
         if (this.pendingScrollAnchor !== null) {
@@ -320,7 +321,7 @@ export class SyncClient {
   private applyExternalUpdate(msg: ExtensionToWebviewMessage): void {
     if (msg.type !== 'externalUpdate') return;
 
-    const currentMarkdown = this.editor.storage.markdown.getMarkdown();
+    const currentMarkdown = unescapeInlineCode(this.editor.storage.markdown.getMarkdown());
     if (msg.markdown.trimEnd() === currentMarkdown.trimEnd()) {
       this.currentVersion = msg.version;
       return;
@@ -352,12 +353,12 @@ export class SyncClient {
 
     // Re-send baseline so the extension can resume three-way merge
     // (external changes invalidate the previous baseline)
-    const baseline = this.editor.storage.markdown.getMarkdown();
+    const baseline = unescapeInlineCode(this.editor.storage.markdown.getMarkdown());
     this.vscode.postMessage({ type: 'baseline', markdown: baseline });
   }
 
   private sendEdit(): void {
-    const markdown = this.editor.storage.markdown.getMarkdown();
+    const markdown = unescapeInlineCode(this.editor.storage.markdown.getMarkdown());
     this.currentVersion++;
     this.vscode.postMessage({ type: 'edit', markdown, version: this.currentVersion });
   }
@@ -372,7 +373,7 @@ export class SyncClient {
       if (e.key === 's') {
         e.preventDefault();
         if (!this.isReadOnly) {
-          const markdown = this.editor.storage.markdown.getMarkdown();
+          const markdown = unescapeInlineCode(this.editor.storage.markdown.getMarkdown());
           this.vscode.postMessage({ type: 'save', markdown });
         }
       }

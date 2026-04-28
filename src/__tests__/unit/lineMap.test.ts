@@ -299,5 +299,46 @@ describe('buildLineMap', () => {
       expectLineNode(map, 17, 'horizontalRule');// ---
       expectLineNode(map, 19, 'paragraph');     // End.
     });
+
+    it('HTML block producing multiple ProseMirror nodes does not shift subsequent lines', () => {
+      // Two adjacent <p> elements without a blank line between them form a single
+      // markdown-it html_block token, but TipTap creates two paragraph nodes.
+      const md = [
+        '<p align="center">First paragraph</p>',   // line 0
+        '<p align="center">Second paragraph</p>',  // line 1
+        '',                                          // line 2
+        '# Heading',                                 // line 3
+        '',                                          // line 4
+        'Body text.',                                // line 5
+      ].join('\n');
+
+      const map = setup(md);
+
+      // Both HTML paragraphs should map to the html_block range (lines 0-2).
+      expectLineMapped(map, 0);
+      expectLineMapped(map, 1);
+
+      // The heading must map to its actual source line, NOT be shifted.
+      expectLineNode(map, 3, 'heading');
+
+      // Body paragraph must also be correctly mapped.
+      expectLineNode(map, 5, 'paragraph');
+    });
+
+    it('HTML comment dropped by TipTap does not cause drift', () => {
+      const md = [
+        '<!-- hidden -->',   // line 0 — dropped by TipTap
+        '',                  // line 1
+        '# Visible heading', // line 2
+        '',                  // line 3
+        'Some text.',        // line 4
+      ].join('\n');
+
+      const map = setup(md);
+
+      // The heading should be at its real source line 2.
+      expectLineNode(map, 2, 'heading');
+      expectLineNode(map, 4, 'paragraph');
+    });
   });
 });

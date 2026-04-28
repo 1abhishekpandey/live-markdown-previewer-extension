@@ -11,14 +11,16 @@ export class DocumentSyncManager {
   private webview: vscode.Webview;
   private readonly isReadOnly: boolean;
   private readonly documentDirUri: string;
+  private readonly workspaceRelativePath: string;
   // Serialize async message handling so edits land before subsequent undo/redo/save
   private messageQueue: Promise<void> = Promise.resolve();
 
-  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false, documentDirUri: string = '') {
+  constructor(document: vscode.TextDocument, webview: vscode.Webview, isReadOnly: boolean = false, documentDirUri: string = '', workspaceRelativePath: string = '') {
     this.document = document;
     this.webview = webview;
     this.isReadOnly = isReadOnly;
     this.documentDirUri = documentDirUri;
+    this.workspaceRelativePath = workspaceRelativePath;
   }
 
   async handleWebviewMessage(msg: WebviewToExtensionMessage): Promise<void> {
@@ -35,7 +37,7 @@ export class DocumentSyncManager {
     switch (msg.type) {
       case 'ready':
         this.originalContent = this.document.getText();
-        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly, documentDirUri: this.documentDirUri });
+        this.postMessage({ type: 'init', markdown: this.document.getText(), isReadOnly: this.isReadOnly, documentDirUri: this.documentDirUri, workspaceRelativePath: this.workspaceRelativePath });
         break;
 
       case 'edit':
@@ -192,7 +194,18 @@ export class DocumentSyncManager {
 
     // Replacement or deletion
     const origStart = this.mapToOriginal(mapping, changeBaseStart, baseLines.length, origLines.length);
-    const origEnd = this.mapToOriginal(mapping, changeBaseEnd, baseLines.length, origLines.length);
+    let origEnd = this.mapToOriginal(mapping, changeBaseEnd, baseLines.length, origLines.length);
+
+    if (oldContent.length === 1) {
+      const mergedBaseLine = oldContent[0];
+      while (
+        origEnd + 1 < origLines.length &&
+        origLines[origEnd + 1].trim() !== '' &&
+        mergedBaseLine.includes(origLines[origEnd + 1])
+      ) {
+        origEnd++;
+      }
+    }
 
     if (origStart < 0 || origEnd < 0 || origEnd < origStart || origStart > origLines.length || origEnd >= origLines.length) {
       return null;
@@ -223,17 +236,36 @@ export class DocumentSyncManager {
       } else {
         const LOOK = 15;
         let bestB = -1, bestO = -1, bestCost = Infinity;
+        let bestIsContent = false;
 
         for (let db = 0; db < LOOK && b + db < baseLines.length; db++) {
           for (let dj = 0; dj < LOOK && o + dj < origLines.length; dj++) {
-            if (baseLines[b + db] === origLines[o + dj] && db + dj < bestCost) {
-              bestB = b + db;
-              bestO = o + dj;
-              bestCost = db + dj;
+            if (baseLines[b + db] === origLines[o + dj]) {
+              const rawCost = db + dj;
+              const isContent = baseLines[b + db].trim() !== '';
+
+              // Content-line matches anchor the alignment better than blank
+              // lines, which repeat frequently and cause misalignment when
+              // baseline diverges from original (e.g. HTML normalisation).
+              let shouldUpdate = false;
+              if (bestB === -1) {
+                shouldUpdate = true;
+              } else if (isContent && !bestIsContent && rawCost <= bestCost + 4) {
+                shouldUpdate = true;
+              } else if (isContent === bestIsContent && rawCost < bestCost) {
+                shouldUpdate = true;
+              }
+
+              if (shouldUpdate) {
+                bestB = b + db;
+                bestO = o + dj;
+                bestCost = rawCost;
+                bestIsContent = isContent;
+              }
               break;
             }
           }
-          if (bestCost <= db) break;
+          if (bestIsContent && bestCost <= db) break;
         }
 
         if (bestB !== -1) {

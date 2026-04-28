@@ -49,6 +49,12 @@
         "title": "Toggle Raw Markdown",
         "icon": "$(code)",
         "category": "LiveMarkdown"
+      },
+      {
+        "command": "liveMarkdown.toggleLlmAssist",
+        "title": "Toggle LLM-Assist",
+        "icon": "$(robot)",
+        "category": "LiveMarkdown"
       }
     ],
     "menus": {

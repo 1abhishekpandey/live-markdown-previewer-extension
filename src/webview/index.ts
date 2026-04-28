@@ -1,12 +1,17 @@
 import './styles.css';
 import { createEditor } from './editor';
+import { unescapeInlineCode } from './markdownPostProcess';
 import { SyncClient } from './syncClient';
 import { setCopyMode } from './copyToolbar';
 import { PendingCommentStore } from './pendingCommentStore';
 import { CommentToggle } from './commentToggle';
 import { CommentPanel } from './commentPanel';
 import { createCommentIndicatorPlugin, updateCommentIndicatorState, getCommentIndicatorState } from './commentIndicator';
-import { buildLineMap } from './lineMap';
+import { buildLineMap, type LineMap } from './lineMap';
+import { LlmCommentStore } from './llmCommentStore';
+import { LlmToggle } from './llmToggle';
+import { LlmSelectionAnchor } from './llmSelectionAnchor';
+import { dispatchLlmMessage, dispatchLlmEditorClick } from './llmDispatch';
 import type { ExtensionToWebviewMessage, CommentDataMessage, ReviewSubmitResultMessage, CommentErrorMessage, LineMappingResultMessage, SavedPendingQueueMessage } from '../sync/syncProtocol';
 import type { CommentThread } from '../sync/commentTypes';
 
@@ -42,6 +47,27 @@ window.addEventListener('message', (event: MessageEvent) => {
     return;
   }
 
+  // LLM-Assist: cache workspaceRelativePath from init, then fall through
+  // so syncClient still handles the init message below.
+  if (data.type === 'init') {
+    const path = (data as { workspaceRelativePath?: unknown }).workspaceRelativePath;
+    if (typeof path === 'string') {
+      workspaceRelativePath = path;
+      llmToggle.workspaceRelativePath = path;
+    }
+  }
+
+  // Capture raw markdown from the extension side BEFORE syncClient.handleMessage
+  // triggers editor updates. This ensures rebuildLlmLineMap uses the actual file
+  // content (not the round-tripped serialisation) for line number mapping.
+  if (data.type === 'init' || data.type === 'externalUpdate') {
+    rawMarkdown = (data as { markdown?: string }).markdown ?? '';
+    isExternallyUpdating = true;
+  }
+
+  // LLM-Assist: toggle command routed from the extension host
+  if (dispatchLlmMessage(data, llmToggle)) return;
+
   // Comment system message routing
   if (data.type === 'commentData') {
     const msg = data as CommentDataMessage;
@@ -50,7 +76,7 @@ window.addEventListener('message', (event: MessageEvent) => {
 
     // Build line map for position lookups
     const md = (editor.storage as any).markdown?.parser?.md;
-    const markdown = editor.storage.markdown.getMarkdown();
+    const markdown = unescapeInlineCode(editor.storage.markdown.getMarkdown());
     const lineMap = md ? buildLineMap(editor.state.doc, markdown, md) : null;
 
     // Update indicator plugin state
@@ -102,6 +128,13 @@ window.addEventListener('message', (event: MessageEvent) => {
   }
 
   syncClient.handleMessage(data as ExtensionToWebviewMessage);
+
+  if (isExternallyUpdating) {
+    // Snapshot the serialised output AFTER setContent so the update handler
+    // can detect real content changes vs mark-only changes.
+    lastKnownSerialized = unescapeInlineCode(editor.storage.markdown.getMarkdown());
+    isExternallyUpdating = false;
+  }
 });
 
 // Code wrap toggle
@@ -144,11 +177,83 @@ copyToggle.addEventListener('click', () => {
 // Comment system
 const pendingStore = new PendingCommentStore(vscode);
 const commentToggle = new CommentToggle(editor, vscode, pendingStore);
-const commentPanel = new CommentPanel(editorElement, pendingStore, vscode);
+const llmStore = new LlmCommentStore();
+const commentPanel = new CommentPanel(
+  editorElement, pendingStore, vscode, llmStore, editor,
+  () => workspaceRelativePath,
+  () => llmLineMap,
+  () => rawMarkdown,
+);
 
 // Register ProseMirror plugin for comment indicators
 const commentPlugin = createCommentIndicatorPlugin();
 editor.registerPlugin(commentPlugin);
+
+// LLM-Assist mount. The rebuildLlmLineMap closure captures `editor` + the
+// markdown-it parser so LlmToggle can republish plugin state without
+// re-deriving these at activate time.
+//
+// rawMarkdown tracks the file content as it exists on disk so that line
+// numbers in the copy payload match the raw .md file (what an LLM reads).
+// It is set from the init/externalUpdate message and updated to the
+// serialised version after each user edit.
+let llmLineMap: LineMap | null = null;
+let rawMarkdown = '';
+let workspaceRelativePath = '';
+let lastKnownSerialized = '';
+let isExternallyUpdating = false;
+const rebuildLlmLineMap = (): void => {
+  const md = (editor.storage as any).markdown?.parser?.md;
+  llmLineMap = md ? buildLineMap(editor.state.doc, rawMarkdown, md) : null;
+};
+
+const llmSelectionAnchor = new LlmSelectionAnchor(
+  editor,
+  llmStore,
+  commentPanel,
+  editorElement,
+  () => llmLineMap,
+);
+
+const llmToggle = new LlmToggle(
+  editor,
+  vscode,
+  llmStore,
+  commentPanel,
+  commentToggle,
+  llmSelectionAnchor,
+  (patch) => {
+    const current = getCommentIndicatorState(editor.view);
+    updateCommentIndicatorState(editor.view, {
+      ...current,
+      llmAssistActive: patch.llmAssistActive ?? current.llmAssistActive ?? false,
+      llmComments: (patch.llmComments as any) ?? current.llmComments ?? [],
+      lineMap: llmLineMap ?? current.lineMap,
+    });
+  },
+  rebuildLlmLineMap,
+  () => llmLineMap,
+  () => rawMarkdown,
+);
+
+// Assemble the right-side toolbar as a connected button group.
+// Buttons are collected after all constructors have appended them to body.
+const toolbarRight = document.createElement('div');
+toolbarRight.id = 'toolbar-right';
+['.llm-toggle', '.review-toggle', '.copy-mode-toggle', '.code-wrap-toggle'].forEach(sel => {
+  const el = document.querySelector(sel);
+  if (el) toolbarRight.appendChild(el);
+});
+document.body.appendChild(toolbarRight);
+
+llmStore.onChange(() => {
+  if (!llmToggle.isActive()) return;
+  const current = getCommentIndicatorState(editor.view);
+  updateCommentIndicatorState(editor.view, {
+    ...current,
+    llmComments: llmStore.getAll(),
+  });
+});
 
 // Track last received threads for badge click lookups
 let lastThreads: CommentThread[] = [];
@@ -325,6 +430,53 @@ editorElement?.addEventListener('click', (e: MouseEvent) => {
   e.stopPropagation();
   e.preventDefault();
   commentPanel.openNew(Number(lineNum), null, diffLine);
+});
+
+// LLM-Assist click handler — runs on the same editor element but short-circuits
+// when LLM mode is inactive. Kept in its own listener so the review-mode handler
+// above stays unchanged.
+editorElement?.addEventListener('click', (e: MouseEvent) => {
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+
+  // Per-line "+" button on a fresh commentable line (no comment yet).
+  // The + is a CSS ::after at right: 8px, 22 px wide — treat the rightmost 38 px
+  // as the click zone, matching the review-mode threshold.
+  if (llmToggle.isActive()) {
+    const commentableLine = target.closest('.llm-line-commentable[data-llm-line]') as HTMLElement | null;
+    if (commentableLine) {
+      const rect = commentableLine.getBoundingClientRect();
+      if (e.clientX >= rect.right - 38) {
+        const line1 = Number(commentableLine.getAttribute('data-llm-line'));
+        if (!isNaN(line1)) {
+          e.stopPropagation();
+          e.preventDefault();
+          commentPanel.openLlmLine(line1, commentableLine);
+          return;
+        }
+      }
+    }
+  }
+
+  if (dispatchLlmEditorClick(target, llmToggle, llmStore, commentPanel)) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+});
+
+// Keep rawMarkdown in sync with user edits so the lineMap reflects what is
+// on disk. Mark-only changes (e.g. LLM comment highlights) change the
+// ProseMirror doc object but produce identical serialised markdown, so
+// comparing doc references is insufficient. Instead, compare the serialised
+// output — only overwrite rawMarkdown when text content actually changed.
+editor.on('update', () => {
+  if (!isExternallyUpdating) {
+    const serialized = unescapeInlineCode(editor.storage.markdown.getMarkdown());
+    if (serialized !== lastKnownSerialized) {
+      rawMarkdown = serialized;
+      lastKnownSerialized = serialized;
+    }
+  }
 });
 
 syncClient.init();

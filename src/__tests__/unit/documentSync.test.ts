@@ -35,8 +35,19 @@ describe('handleWebviewMessage', () => {
     const mgr = new DocumentSyncManager(doc as any, webview as any);
     await mgr.handleWebviewMessage({ type: 'ready' });
     expect(webview.postMessage).toHaveBeenCalledWith({
-      type: 'init', markdown: '# Hello', isReadOnly: false, documentDirUri: '',
+      type: 'init', markdown: '# Hello', isReadOnly: false, documentDirUri: '', workspaceRelativePath: '',
     });
+  });
+
+  // I2: workspaceRelativePath flows through from constructor to init message
+  it('I2: sends workspaceRelativePath in init message when constructor arg is provided', async () => {
+    const webview = makeWebview();
+    const doc = makeDocument('# Hello');
+    const mgr = new DocumentSyncManager(doc as any, webview as any, false, 'webview-uri', 'a/b.md');
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    expect(webview.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'init', workspaceRelativePath: 'a/b.md' })
+    );
   });
 
   it('sends isReadOnly: true in init when constructed with isReadOnly', async () => {
@@ -421,5 +432,136 @@ describe('baseline and three-way merge', () => {
 
     // Should apply original unchanged
     expect(appliedContent).toBe(original);
+  });
+
+  it('inserts before horizontal rule when HTML causes large baseline offset', async () => {
+    // Simulates a README with HTML header blocks (16 lines) that TipTap
+    // normalises to a few lines, plus multiple --- separators.
+    const original = [
+      '<p align="center">',
+      '  <a href="https://example.com">',
+      '    <img alt="Logo" src="logo.png">',
+      '  </a>',
+      '  <br />',
+      '  <caption>Tagline</caption>',
+      '</p>',
+      '<p align="center">',
+      '  <b>',
+      '    <a href="https://example.com">Website</a>',
+      '    ·',
+      '    <a href="https://example.com/docs">Docs</a>',
+      '  </b>',
+      '</p>',
+      '',
+      '[![badge](https://badge.svg)](https://deepwiki.com)',
+      '',
+      '---',
+      '',
+      '# Project Title',
+      '',
+      'Project description paragraph.',
+      '',
+      '---',
+      '',
+      '## Table of Contents',
+      '',
+      '- [Section A](#a)',
+      '- [Section B](#b)',
+      '',
+      '---',
+      '',
+      '## Section A',
+    ].join('\n');
+
+    // TipTap normalises the HTML blocks into plain markdown
+    const baseline = [
+      '[![Logo](logo.png)](https://example.com)',
+      'Tagline',
+      '',
+      '[**Website**](https://example.com) · [**Docs**](https://example.com/docs)',
+      '',
+      '[![badge](https://badge.svg)](https://deepwiki.com)',
+      '',
+      '---',
+      '',
+      '# Project Title',
+      '',
+      'Project description paragraph.',
+      '',
+      '---',
+      '',
+      '## Table of Contents',
+      '',
+      '- [Section A](#a)',
+      '- [Section B](#b)',
+      '',
+      '---',
+      '',
+      '## Section A',
+    ].join('\n');
+
+    // User inserts two paragraphs after "Project description" and before ---
+    const edited = [
+      '[![Logo](logo.png)](https://example.com)',
+      'Tagline',
+      '',
+      '[**Website**](https://example.com) · [**Docs**](https://example.com/docs)',
+      '',
+      '[![badge](https://badge.svg)](https://deepwiki.com)',
+      '',
+      '---',
+      '',
+      '# Project Title',
+      '',
+      'Project description paragraph.',
+      '',
+      'New line one',
+      '',
+      'New line two',
+      '',
+      '---',
+      '',
+      '## Table of Contents',
+      '',
+      '- [Section A](#a)',
+      '- [Section B](#b)',
+      '',
+      '---',
+      '',
+      '## Section A',
+    ].join('\n');
+
+    const doc = makeDocument(original);
+    const webview = makeWebview();
+    const mgr = new DocumentSyncManager(doc as any, webview as any);
+
+    await mgr.handleWebviewMessage({ type: 'ready' });
+    await mgr.handleWebviewMessage({ type: 'baseline', markdown: baseline });
+
+    vi.clearAllMocks();
+    (vscode.WorkspaceEdit as any).mockImplementation(function() { return { replace: vi.fn() }; });
+    (vscode.workspace.applyEdit as any).mockResolvedValue(true);
+
+    await mgr.handleWebviewMessage({ type: 'edit', markdown: edited, version: 0 });
+
+    const editInstance = (vscode.WorkspaceEdit as any).mock.results[0].value;
+    const appliedContent: string = editInstance.replace.mock.calls[0][2];
+    const lines = appliedContent.split('\n');
+
+    // HTML blocks preserved
+    expect(appliedContent).toContain('<p align="center">');
+    expect(appliedContent).toContain('<caption>Tagline</caption>');
+
+    // New text must appear BEFORE the second ---, not after it
+    const descIdx = lines.indexOf('Project description paragraph.');
+    const newLine1Idx = lines.indexOf('New line one');
+    const newLine2Idx = lines.indexOf('New line two');
+    const secondHrIdx = lines.indexOf('---', descIdx + 1);
+    const tocIdx = lines.indexOf('## Table of Contents');
+
+    expect(newLine1Idx).toBeGreaterThan(descIdx);
+    expect(newLine2Idx).toBeGreaterThan(newLine1Idx);
+    expect(secondHrIdx).toBeGreaterThan(newLine2Idx);
+    expect(tocIdx).toBeGreaterThan(secondHrIdx);
   });
 });

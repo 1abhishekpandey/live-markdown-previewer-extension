@@ -149,6 +149,33 @@ html, body {
   border-radius: 0;
 }
 
+/* Right-side toolbar: all 4 toggle buttons connected as a single button group */
+#toolbar-right {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 100;
+  display: flex;
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Override individual fixed positioning when buttons sit inside the container */
+#toolbar-right button {
+  position: static;
+  top: auto;
+  right: auto;
+  z-index: auto;
+  border: none;
+  border-radius: 0;
+}
+
+/* Vertical divider between adjacent buttons */
+#toolbar-right button + button {
+  border-left: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+}
+
 /* Code wrap toggle */
 .code-wrap-toggle {
   position: fixed;
@@ -998,4 +1025,316 @@ html, body {
   color: var(--vscode-editorInfo-foreground, #3794ff);
   font-size: 11px;
   font-style: italic;
+}
+
+/* LLM-Assist mode */
+
+/* Inline highlight span applied by LlmCommentMark.
+   Uses the search-match highlight colour so it is visible in every
+   VS Code theme (light, dark, high contrast). */
+.llm-comment-mark {
+  background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 200, 0, 0.25));
+  border-radius: 2px;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Commentable block node (no LLM comments on this line yet).
+   The + affordance only appears on hover, mirroring .diff-highlight::after. */
+.llm-line-commentable {
+  position: relative;
+}
+
+.llm-line-commentable::after {
+  content: '+';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.3));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.llm-line-commentable:hover::after {
+  opacity: 0.7;
+}
+
+.llm-line-commentable:hover::after:hover {
+  opacity: 1;
+}
+
+/* Hide the + when the user has an active selection (the selection-anchor
+   button takes over during Phase 5). */
+.has-selection .llm-line-commentable::after {
+  display: none;
+}
+
+/* Line currently being commented (panel is open). */
+.llm-line-active {
+  background: var(--vscode-editor-selectionHighlightBackground, rgba(0, 120, 215, 0.15));
+}
+
+/* Commented block node: shows a count badge instead of the hover +. */
+.llm-line-commented {
+  background: var(--vscode-editor-findMatchHighlightBackground, rgba(255, 200, 0, 0.15));
+  position: relative;
+}
+
+.llm-line-commented[data-llm-count]::after {
+  content: '🤖 ' attr(data-llm-count);
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  background: var(--vscode-badge-background, #4d4d4d);
+  color: var(--vscode-badge-foreground, #fff);
+  border-radius: 11px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.8;
+  z-index: 5;
+}
+
+.llm-line-commented[data-llm-count]:hover::after {
+  opacity: 1;
+}
+
+/* Floating + button for LLM-Assist selection anchor */
+.llm-selection-plus {
+  position: fixed;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border: none;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s;
+}
+
+.llm-selection-plus:hover {
+  transform: scale(1.15);
+}
+
+/* Title-bar toggle button — matches .review-toggle / .copy-mode-toggle styling. */
+.llm-toggle {
+  position: fixed;
+  top: 8px;
+  right: 226px;
+  z-index: 100;
+  padding: 3px 8px;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--vscode-font-family, sans-serif);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.llm-toggle:hover {
+  opacity: 1;
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+.llm-toggle.active {
+  opacity: 1;
+}
+
+/* Row 2: Copy all + Clear all action row. */
+.llm-bar {
+  position: fixed;
+  top: 36px;
+  right: 226px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.4));
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.llm-actions-row {
+  display: flex;
+  gap: 6px;
+}
+
+.llm-copy-all,
+.llm-clear-all {
+  padding: 4px 8px;
+  background: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border: none;
+  border-radius: 3px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.llm-copy-all:hover,
+.llm-clear-all:hover {
+  background: var(--vscode-button-hoverBackground, #005a9e);
+}
+
+.llm-clear-all {
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.3));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+}
+
+/* Transient error banner for mode-mutex rejections. */
+.llm-error-banner {
+  position: fixed;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 8px 12px;
+  background: var(--vscode-inputValidation-errorBackground, #5a1d1d);
+  color: var(--vscode-inputValidation-errorForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-inputValidation-errorBorder, #be1100);
+  border-radius: 4px;
+  font-size: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Commented line is clickable so the cursor should reflect that. */
+.llm-line-commented {
+  cursor: pointer;
+}
+
+/* LLM comment navigation (multi-comment lines) */
+.llm-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 4px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.llm-nav-btn {
+  background: none;
+  border: none;
+  color: var(--vscode-editor-foreground);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.llm-nav-btn:hover {
+  opacity: 1;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+}
+
+.llm-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.llm-nav-btn:disabled:hover {
+  background: none;
+}
+
+.llm-nav-label {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  user-select: none;
+}
+
+/* LLM copy section (bottom of panel, above textarea) */
+.llm-copy-section {
+  padding: 6px 12px;
+  border-top: 1px solid var(--vscode-editorWidget-border);
+}
+
+.llm-copy-single {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--vscode-button-secondaryBackground, rgba(128, 128, 128, 0.2));
+  color: var(--vscode-button-secondaryForeground, var(--vscode-editor-foreground));
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.3));
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.llm-copy-single:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(128, 128, 128, 0.35));
+}
+
+/* LLM entry action buttons (Edit | Delete) */
+.llm-entry-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.llm-entry-actions button {
+  background: none;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.llm-entry-actions button:hover {
+  opacity: 1;
+  color: var(--vscode-editor-foreground);
+}
+
+/* LLM thread container */
+.llm-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* LLM reply entry (indented within thread) */
+.llm-reply-entry {
+  margin-left: 12px;
+  padding-left: 8px;
+  border-left: 2px solid var(--vscode-editorWidget-border, rgba(128, 128, 128, 0.3));
 }

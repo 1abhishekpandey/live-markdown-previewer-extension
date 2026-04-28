@@ -7,6 +7,7 @@ export interface InitMessage {
   markdown: string;
   isReadOnly?: boolean;
   documentDirUri?: string;
+  workspaceRelativePath?: string;
 }
 
 export interface ExternalUpdateMessage {
