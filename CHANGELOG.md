@@ -4,6 +4,12 @@ All notable changes to the LiveMarkdown extension are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-04-28
+
+# Features
+
+- LLM Assist mode with comment threading — annotate markdown with AI-generated comments inline
+
 ## [0.5.1] - 2026-04-11
 
 # Fixed
@@ -100,6 +106,7 @@ Initial release.
 - Extension icon, licence, and install script
 - Full theme integration via `var(--vscode-*)` CSS variables
 
+[0.6.0]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/1abhishekpandey/live-markdown-previewer-extension/compare/v0.4.1...v0.4.2
